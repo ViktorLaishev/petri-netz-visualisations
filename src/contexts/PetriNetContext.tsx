@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useReducer, useEffect, ReactNode } from "react";
 import { toast } from "sonner";
 
@@ -51,6 +50,7 @@ interface PetriNetContextType {
   generateBatch: (count: number, useRandom: boolean, selectedRules: string[]) => void;
   setTokenFlow: (start: string, end: string) => void;
   startSimulation: () => void;
+  stopSimulation: () => void;
   centerGraph: () => void;
   downloadLog: () => void;
 }
@@ -193,6 +193,7 @@ type ActionType =
   | { type: 'GENERATE_BATCH'; count: number; useRandom: boolean; selectedRules: string[] }
   | { type: 'SET_TOKEN_FLOW'; start: string; end: string }
   | { type: 'START_SIMULATION' }
+  | { type: 'STOP_SIMULATION' }
   | { type: 'UPDATE_TOKEN_ANIMATION'; progress: number }
   | { type: 'COMPLETE_SIMULATION' }
   | { type: 'CENTER_GRAPH' };
@@ -249,7 +250,14 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
       const newState = pushHistory(state);
       const newGraph = {
         ...newState.graph,
-        nodes: [...newState.graph.nodes, { id: action.id, type: 'place', tokens: 0 }]
+        nodes: [
+          ...newState.graph.nodes,
+          {
+            id: action.id,
+            type: "place" as NodeType, // type-safe assignment
+            tokens: 0,
+          }
+        ]
       };
       
       return addLogEntry({
@@ -268,7 +276,13 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
       const newState = pushHistory(state);
       const newGraph = {
         ...newState.graph,
-        nodes: [...newState.graph.nodes, { id: action.id, type: 'transition' }]
+        nodes: [
+          ...newState.graph.nodes,
+          {
+            id: action.id,
+            type: "transition" as NodeType // type-safe assignment
+          }
+        ]
       };
       
       return addLogEntry({
@@ -470,6 +484,15 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
       };
     }
       
+    case 'STOP_SIMULATION': {
+      // Instantly clear animation and highlight, reset simulation mode
+      return {
+        ...state,
+        simulationActive: false,
+        animatingTokens: []
+      };
+    }
+      
     case 'UPDATE_TOKEN_ANIMATION': {
       return {
         ...state,
@@ -569,6 +592,7 @@ export const PetriNetProvider: React.FC<{ children: ReactNode }> = ({ children }
     setTokenFlow: (start: string, end: string) => 
       dispatch({ type: 'SET_TOKEN_FLOW', start, end }),
     startSimulation: () => dispatch({ type: 'START_SIMULATION' }),
+    stopSimulation: () => dispatch({ type: 'STOP_SIMULATION' }),
     centerGraph: () => dispatch({ type: 'CENTER_GRAPH' }),
     downloadLog: () => {
       // Create CSV from log entries
