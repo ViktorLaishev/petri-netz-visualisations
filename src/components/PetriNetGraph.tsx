@@ -1,10 +1,9 @@
-
 import React, { useRef, useEffect, useState } from "react";
 import { usePetriNet } from "@/contexts/PetriNetContext";
 import cytoscape from "cytoscape";
 
 const PetriNetGraph: React.FC = () => {
-  const { state } = usePetriNet();
+  const { state, stopSimulation } = usePetriNet();
   const { graph, simulationActive, animatingTokens } = state;
   
   const cyRef = useRef<HTMLDivElement>(null);
@@ -21,7 +20,7 @@ const PetriNetGraph: React.FC = () => {
             selector: '.place',
             style: {
               'shape': 'ellipse',
-              'background-color': '#60a5fa',  // Direct color values instead of hsl variables
+              'background-color': '#60a5fa',
               'color': 'black',
               'label': 'data(label)',
               'text-valign': 'center',
@@ -37,7 +36,7 @@ const PetriNetGraph: React.FC = () => {
             selector: '.transition',
             style: {
               'shape': 'rectangle',
-              'background-color': '#4ade80',  // Direct green color
+              'background-color': '#4ade80',
               'color': 'black',
               'label': 'data(label)',
               'text-valign': 'center',
@@ -55,7 +54,7 @@ const PetriNetGraph: React.FC = () => {
               'curve-style': 'bezier',
               'target-arrow-shape': 'triangle',
               'arrow-scale': 1,
-              'line-color': '#60a5fa',  // Direct blue color
+              'line-color': '#60a5fa',
               'target-arrow-color': '#60a5fa',
               'width': 2
             }
@@ -64,7 +63,7 @@ const PetriNetGraph: React.FC = () => {
             selector: '.token',
             style: {
               'shape': 'ellipse',
-              'background-color': '#f43f5e',  // Direct red color
+              'background-color': '#f43f5e',
               'width': '15px',
               'height': '15px',
               'z-index': 999
@@ -74,15 +73,15 @@ const PetriNetGraph: React.FC = () => {
             selector: '.has-token',
             style: {
               'border-width': 3,
-              'border-color': '#f43f5e',  // Direct red color
+              'border-color': '#f43f5e',
               'border-style': 'solid'
             }
           },
           {
             selector: '.active-path',
             style: {
-              'line-color': '#f43f5e',  // Direct red color
-              'target-arrow-color': '#f43f5e',  // Direct red color
+              'line-color': '#f43f5e',
+              'target-arrow-color': '#f43f5e',
               'width': 3,
               'line-style': 'dashed'
             }
@@ -90,7 +89,7 @@ const PetriNetGraph: React.FC = () => {
           {
             selector: '.highlighted',
             style: {
-              'background-color': '#f43f5e',  // Direct red color
+              'background-color': '#f43f5e',
               'color': 'white'
             }
           }
@@ -161,28 +160,30 @@ const PetriNetGraph: React.FC = () => {
   
   // Handle animation
   useEffect(() => {
+    if (!simulationActive && cyInstanceRef.current) {
+      // Remove any animated tokens and highlights when simulation is stopped
+      const cy = cyInstanceRef.current;
+      cy.elements('.animated-token').remove();
+      cy.elements('.active-path').removeClass('active-path');
+      return;
+    }
+
     if (simulationActive && animatingTokens.length > 0 && cyInstanceRef.current) {
       const cy = cyInstanceRef.current;
-      
-      // Animation for each token
       animatingTokens.forEach(token => {
         const { sourceId, targetId, progress } = token;
         const sourceNode = cy.getElementById(sourceId);
         const targetNode = cy.getElementById(targetId);
-        
+
         if (sourceNode.length && targetNode.length) {
-          // Find the path (simplified)
           const sourcePos = sourceNode.position();
           const targetPos = targetNode.position();
-          
-          // Calculate position along path based on progress
+
           const xPos = sourcePos.x + (targetPos.x - sourcePos.x) * progress;
           const yPos = sourcePos.y + (targetPos.y - sourcePos.y) * progress;
-          
-          // Remove any existing token nodes
+
           cy.elements('.animated-token').remove();
-          
-          // Add token at the calculated position
+
           if (progress < 1) {
             cy.add({
               group: 'nodes',
@@ -191,16 +192,13 @@ const PetriNetGraph: React.FC = () => {
               position: { x: xPos, y: yPos }
             });
           }
-          
+
           // Highlight path
           const edgesBySource = graph.edges.filter(e => e.source === sourceId);
           const connectedTransition = edgesBySource.length > 0 ? edgesBySource[0].target : null;
-          
+
           if (connectedTransition) {
-            // Highlight edge from source to transition
             cy.getElementById(`${sourceId}-${connectedTransition}`).addClass('active-path');
-            
-            // Find edge from transition to target
             const edgesToTarget = graph.edges.filter(e => e.source === connectedTransition && e.target === targetId);
             if (edgesToTarget.length > 0) {
               cy.getElementById(`${connectedTransition}-${targetId}`).addClass('active-path');
@@ -208,8 +206,7 @@ const PetriNetGraph: React.FC = () => {
           }
         }
       });
-      
-      // Clean up animation elements when complete
+
       if (animatingTokens[0].progress >= 1) {
         cy.elements('.animated-token').remove();
         cy.elements('.active-path').removeClass('active-path');
