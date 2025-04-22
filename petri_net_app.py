@@ -428,7 +428,7 @@ def update_elements(add_place, add_transition, clear_graph, edge_data, elements,
     return updated_elements, updated_log
 
 @callback(
-    Output('cytoscape-elements', 'elements'),
+    Output('cytoscape-petri', 'elements'),
     [Input('cytoscape-elements', 'data'),
      Input('simulation-state', 'data'),
      Input('selected-nodes', 'data')]
