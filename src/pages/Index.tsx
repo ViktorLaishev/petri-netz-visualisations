@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -41,6 +40,7 @@ const Index = () => {
                     <CardTitle>Petri Net Visualization</CardTitle>
                     <div className="flex gap-2">
                       <StartSimulationButton />
+                      <StopSimulationButton />
                       <CenterGraphButton />
                     </div>
                   </div>
@@ -585,6 +585,23 @@ const DownloadLogButton = () => {
     >
       <Download className="h-4 w-4 mr-2" />
       Download CSV
+    </Button>
+  );
+};
+
+const StopSimulationButton = ({ className = "" }) => {
+  const { stopSimulation } = usePetriNet();
+  return (
+    <Button
+      variant="destructive"
+      className={`bg-red-600 hover:bg-red-700 ${className}`}
+      onClick={() => {
+        stopSimulation();
+        // Don't toast here; feedback provided by animation change
+      }}
+    >
+      <span className="mr-2">⏹</span>
+      Stop Simulation
     </Button>
   );
 };
