@@ -10,7 +10,7 @@ const PetriNetGraph: React.FC = () => {
   const cyRef = useRef<HTMLDivElement>(null);
   const cyInstanceRef = useRef<any>(null);
   
-  // Initialize cytospace instance
+  // Initialize cytoscape instance
   useEffect(() => {
     if (cyRef.current) {
       cyInstanceRef.current = cytoscape({
@@ -21,8 +21,8 @@ const PetriNetGraph: React.FC = () => {
             selector: '.place',
             style: {
               'shape': 'ellipse',
-              'background-color': 'hsl(var(--primary))',
-              'color': 'hsl(var(--primary-foreground))',
+              'background-color': '#60a5fa',  // Direct color values instead of hsl variables
+              'color': 'black',
               'label': 'data(label)',
               'text-valign': 'center',
               'text-halign': 'center',
@@ -30,15 +30,15 @@ const PetriNetGraph: React.FC = () => {
               'width': '40px',
               'height': '40px',
               'border-width': '2px',
-              'border-color': 'hsl(var(--border))'
+              'border-color': '#94a3b8'
             }
           },
           {
             selector: '.transition',
             style: {
               'shape': 'rectangle',
-              'background-color': 'hsl(var(--accent))', 
-              'color': 'hsl(var(--accent-foreground))',
+              'background-color': '#4ade80',  // Direct green color
+              'color': 'black',
               'label': 'data(label)',
               'text-valign': 'center',
               'text-halign': 'center',
@@ -46,7 +46,7 @@ const PetriNetGraph: React.FC = () => {
               'width': '40px',
               'height': '30px',
               'border-width': '2px',
-              'border-color': 'hsl(var(--border))'
+              'border-color': '#94a3b8'
             }
           },
           {
@@ -55,8 +55,8 @@ const PetriNetGraph: React.FC = () => {
               'curve-style': 'bezier',
               'target-arrow-shape': 'triangle',
               'arrow-scale': 1,
-              'line-color': 'hsl(var(--primary))',
-              'target-arrow-color': 'hsl(var(--primary))',
+              'line-color': '#60a5fa',  // Direct blue color
+              'target-arrow-color': '#60a5fa',
               'width': 2
             }
           },
@@ -64,7 +64,7 @@ const PetriNetGraph: React.FC = () => {
             selector: '.token',
             style: {
               'shape': 'ellipse',
-              'background-color': 'hsl(var(--destructive))',
+              'background-color': '#f43f5e',  // Direct red color
               'width': '15px',
               'height': '15px',
               'z-index': 999
@@ -74,15 +74,15 @@ const PetriNetGraph: React.FC = () => {
             selector: '.has-token',
             style: {
               'border-width': 3,
-              'border-color': 'hsl(var(--destructive))',
+              'border-color': '#f43f5e',  // Direct red color
               'border-style': 'solid'
             }
           },
           {
             selector: '.active-path',
             style: {
-              'line-color': 'hsl(var(--destructive))',
-              'target-arrow-color': 'hsl(var(--destructive))',
+              'line-color': '#f43f5e',  // Direct red color
+              'target-arrow-color': '#f43f5e',  // Direct red color
               'width': 3,
               'line-style': 'dashed'
             }
@@ -90,8 +90,8 @@ const PetriNetGraph: React.FC = () => {
           {
             selector: '.highlighted',
             style: {
-              'background-color': 'hsl(var(--destructive))',
-              'color': 'hsl(var(--destructive-foreground))'
+              'background-color': '#f43f5e',  // Direct red color
+              'color': 'white'
             }
           }
         ],
@@ -193,11 +193,18 @@ const PetriNetGraph: React.FC = () => {
           }
           
           // Highlight path
-          const connectedTransition = graph.edges.find(e => e.source === sourceId)?.target;
+          const edgesBySource = graph.edges.filter(e => e.source === sourceId);
+          const connectedTransition = edgesBySource.length > 0 ? edgesBySource[0].target : null;
           
           if (connectedTransition) {
+            // Highlight edge from source to transition
             cy.getElementById(`${sourceId}-${connectedTransition}`).addClass('active-path');
-            cy.getElementById(`${connectedTransition}-${targetId}`).addClass('active-path');
+            
+            // Find edge from transition to target
+            const edgesToTarget = graph.edges.filter(e => e.source === connectedTransition && e.target === targetId);
+            if (edgesToTarget.length > 0) {
+              cy.getElementById(`${connectedTransition}-${targetId}`).addClass('active-path');
+            }
           }
         }
       });
