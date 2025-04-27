@@ -1,0 +1,410 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pnml>
+  <net id="new_petri_net" type="http://www.pnml.org/version-2009/grammar/pnmlcoremodel">
+    <name>
+      <text>new_petri_net</text>
+    </name>
+    <page id="n0">
+      <place id="p17">
+        <name>
+          <text>p17</text>
+        </name>
+      </place>
+      <place id="p10">
+        <name>
+          <text>p10</text>
+        </name>
+      </place>
+      <place id="p0">
+        <name>
+          <text>p0</text>
+        </name>
+      </place>
+      <place id="p3">
+        <name>
+          <text>p3</text>
+        </name>
+      </place>
+      <place id="p8">
+        <name>
+          <text>p8</text>
+        </name>
+      </place>
+      <place id="p12">
+        <name>
+          <text>p12</text>
+        </name>
+      </place>
+      <place id="p21">
+        <name>
+          <text>p21</text>
+        </name>
+      </place>
+      <place id="p26">
+        <name>
+          <text>p26</text>
+        </name>
+      </place>
+      <place id="p2">
+        <name>
+          <text>p2</text>
+        </name>
+        <initialMarking>
+          <text>1</text>
+        </initialMarking>
+      </place>
+      <place id="p5">
+        <name>
+          <text>p5</text>
+        </name>
+      </place>
+      <place id="p6">
+        <name>
+          <text>p6</text>
+        </name>
+      </place>
+      <place id="p7">
+        <name>
+          <text>p7</text>
+        </name>
+      </place>
+      <place id="p9">
+        <name>
+          <text>p9</text>
+        </name>
+      </place>
+      <place id="p14">
+        <name>
+          <text>p14</text>
+        </name>
+      </place>
+      <place id="p23">
+        <name>
+          <text>p23</text>
+        </name>
+      </place>
+      <place id="p27">
+        <name>
+          <text>p27</text>
+        </name>
+      </place>
+      <place id="p18">
+        <name>
+          <text>p18</text>
+        </name>
+      </place>
+      <place id="p4">
+        <name>
+          <text>p4</text>
+        </name>
+      </place>
+      <place id="p20">
+        <name>
+          <text>p20</text>
+        </name>
+      </place>
+      <place id="p24">
+        <name>
+          <text>p24</text>
+        </name>
+      </place>
+      <place id="p15">
+        <name>
+          <text>p15</text>
+        </name>
+      </place>
+      <place id="p13">
+        <name>
+          <text>p13</text>
+        </name>
+      </place>
+      <place id="p1">
+        <name>
+          <text>p1</text>
+        </name>
+      </place>
+      <place id="p11">
+        <name>
+          <text>p11</text>
+        </name>
+      </place>
+      <place id="p16">
+        <name>
+          <text>p16</text>
+        </name>
+      </place>
+      <place id="p19">
+        <name>
+          <text>p19</text>
+        </name>
+      </place>
+      <place id="p22">
+        <name>
+          <text>p22</text>
+        </name>
+      </place>
+      <place id="p25">
+        <name>
+          <text>p25</text>
+        </name>
+      </place>
+      <transition id="t2">
+        <name>
+          <text>t2</text>
+        </name>
+      </transition>
+      <transition id="t1">
+        <name>
+          <text>t1</text>
+        </name>
+      </transition>
+      <transition id="t12">
+        <name>
+          <text>t12</text>
+        </name>
+      </transition>
+      <transition id="t20">
+        <name>
+          <text>t20</text>
+        </name>
+      </transition>
+      <transition id="t9">
+        <name>
+          <text>t9</text>
+        </name>
+      </transition>
+      <transition id="t17">
+        <name>
+          <text>t17</text>
+        </name>
+      </transition>
+      <transition id="t13">
+        <name>
+          <text>t13</text>
+        </name>
+      </transition>
+      <transition id="t21">
+        <name>
+          <text>t21</text>
+        </name>
+      </transition>
+      <transition id="t23">
+        <name>
+          <text>t23</text>
+        </name>
+      </transition>
+      <transition id="t24">
+        <name>
+          <text>t24</text>
+        </name>
+      </transition>
+      <transition id="t0">
+        <name>
+          <text>t0</text>
+        </name>
+      </transition>
+      <transition id="t25">
+        <name>
+          <text>t25</text>
+        </name>
+      </transition>
+      <transition id="t3">
+        <name>
+          <text>t3</text>
+        </name>
+      </transition>
+      <transition id="t6">
+        <name>
+          <text>t6</text>
+        </name>
+      </transition>
+      <transition id="t10">
+        <name>
+          <text>t10</text>
+        </name>
+      </transition>
+      <transition id="t18">
+        <name>
+          <text>t18</text>
+        </name>
+      </transition>
+      <transition id="t14">
+        <name>
+          <text>t14</text>
+        </name>
+      </transition>
+      <transition id="t4">
+        <name>
+          <text>t4</text>
+        </name>
+      </transition>
+      <transition id="t15">
+        <name>
+          <text>t15</text>
+        </name>
+      </transition>
+      <transition id="t19">
+        <name>
+          <text>t19</text>
+        </name>
+      </transition>
+      <transition id="t28">
+        <name>
+          <text>t28</text>
+        </name>
+      </transition>
+      <transition id="t29">
+        <name>
+          <text>t29</text>
+        </name>
+      </transition>
+      <transition id="t30">
+        <name>
+          <text>t30</text>
+        </name>
+      </transition>
+      <transition id="t32">
+        <name>
+          <text>t32</text>
+        </name>
+      </transition>
+      <transition id="t5">
+        <name>
+          <text>t5</text>
+        </name>
+      </transition>
+      <transition id="t7">
+        <name>
+          <text>t7</text>
+        </name>
+      </transition>
+      <transition id="t11">
+        <name>
+          <text>t11</text>
+        </name>
+      </transition>
+      <transition id="t16">
+        <name>
+          <text>t16</text>
+        </name>
+      </transition>
+      <transition id="t22">
+        <name>
+          <text>t22</text>
+        </name>
+      </transition>
+      <transition id="t31">
+        <name>
+          <text>t31</text>
+        </name>
+      </transition>
+      <transition id="t8">
+        <name>
+          <text>t8</text>
+        </name>
+      </transition>
+      <transition id="t26">
+        <name>
+          <text>t26</text>
+        </name>
+      </transition>
+      <transition id="t27">
+        <name>
+          <text>t27</text>
+        </name>
+      </transition>
+      <arc id="1439911713280" source="t16" target="p6"/>
+      <arc id="1439911711744" source="p15" target="t27"/>
+      <arc id="1439933565440" source="p27" target="t19"/>
+      <arc id="1439905045520" source="p0" target="t28"/>
+      <arc id="1439911713808" source="t27" target="p13"/>
+      <arc id="1439911712272" source="t6" target="p19"/>
+      <arc id="1439905152544" source="t14" target="p21"/>
+      <arc id="1439905151008" source="t1" target="p26"/>
+      <arc id="1439905149472" source="t13" target="p26"/>
+      <arc id="1439911711792" source="p6" target="t6"/>
+      <arc id="1439905151536" source="p21" target="t9"/>
+      <arc id="1439905150000" source="p26" target="t11"/>
+      <arc id="1439915884608" source="p0" target="t24"/>
+      <arc id="1439905149520" source="t2" target="p23"/>
+      <arc id="1439905046096" source="t32" target="p3"/>
+      <arc id="1439911712848" source="t21" target="p8"/>
+      <arc id="1439911711312" source="t16" target="p15"/>
+      <arc id="1439905151056" source="p24" target="t5"/>
+      <arc id="1439911713376" source="t17" target="p5"/>
+      <arc id="1439911711840" source="p13" target="t30"/>
+      <arc id="1439905151584" source="t8" target="p23"/>
+      <arc id="1439933565536" source="p27" target="t21"/>
+      <arc id="1439911713904" source="p7" target="t7"/>
+      <arc id="1439911712368" source="t29" target="p12"/>
+      <arc id="1439911714432" source="p12" target="t32"/>
+      <arc id="1439905152640" source="p22" target="t17"/>
+      <arc id="1439911713424" source="p18" target="t20"/>
+      <arc id="1439905151632" source="t16" target="p21"/>
+      <arc id="1439905045664" source="p1" target="t2"/>
+      <arc id="1439911713952" source="t11" target="p6"/>
+      <arc id="1439905149088" source="t1" target="p25"/>
+      <arc id="1439905046192" source="p2" target="t12"/>
+      <arc id="1439911712944" source="t26" target="p16"/>
+      <arc id="1439911711408" source="p16" target="t29"/>
+      <arc id="1439905151152" source="t7" target="p27"/>
+      <arc id="1439911711936" source="t24" target="p7"/>
+      <arc id="1439911713472" source="t31" target="p13"/>
+      <arc id="1439915884752" source="p0" target="t0"/>
+      <arc id="1439911710928" source="p14" target="t26"/>
+      <arc id="1439911714000" source="t13" target="p17"/>
+      <arc id="1439911712464" source="t9" target="p18"/>
+      <arc id="1439905152736" source="t19" target="p23"/>
+      <arc id="1439905151200" source="t1" target="p24"/>
+      <arc id="1439911711984" source="p8" target="t8"/>
+      <arc id="1439911713520" source="t12" target="p9"/>
+      <arc id="1439915884800" source="t18" target="p0"/>
+      <arc id="1439905045760" source="p2" target="t3"/>
+      <arc id="1439905044752" source="p1" target="t1"/>
+      <arc id="1439905046288" source="p1" target="t13"/>
+      <arc id="1439911714576" source="p9" target="t10"/>
+      <arc id="1439905149712" source="t0" target="p27"/>
+      <arc id="1439905150240" source="t25" target="p22"/>
+      <arc id="1439905045808" source="p3" target="t4"/>
+      <arc id="1439911712560" source="t20" target="p10"/>
+      <arc id="1439905152832" source="t23" target="p22"/>
+      <arc id="1439905046336" source="t10" target="p1"/>
+      <arc id="1439911713088" source="p15" target="t31"/>
+      <arc id="1439911711552" source="t15" target="p16"/>
+      <arc id="1439905151296" source="t23" target="p20"/>
+      <arc id="1439911713616" source="p7" target="t15"/>
+      <arc id="1439911711072" source="p20" target="t9"/>
+      <arc id="1439911713136" source="p7" target="t22"/>
+      <arc id="1439905152880" source="t16" target="p25"/>
+      <arc id="1439911713664" source="p10" target="t18"/>
+      <arc id="1439911712128" source="p19" target="t9"/>
+      <arc id="1439905151872" source="t25" target="p20"/>
+      <arc id="1439905150336" source="p25" target="t6"/>
+      <arc id="1439933565824" source="t28" target="p27"/>
+      <arc id="1439897595280" source="p4" target="t4"/>
+      <arc id="1439905150864" source="t13" target="p25"/>
+      <arc id="1439905046432" source="p1" target="t16"/>
+      <arc id="1439911713184" source="t29" target="p4"/>
+      <arc id="1439905149856" source="t14" target="p22"/>
+      <arc id="1439911713712" source="p11" target="t23"/>
+      <arc id="1439905151920" source="t5" target="p21"/>
+      <arc id="1439905152448" source="t4" target="p23"/>
+      <arc id="1439911712704" source="p5" target="t6"/>
+      <arc id="1439911714240" source="t22" target="p14"/>
+      <arc id="1439911711168" source="t14" target="p20"/>
+      <arc id="1439905149376" source="t5" target="p22"/>
+      <arc id="1439905046480" source="t3" target="p1"/>
+      <arc id="1439911714768" source="p17" target="t14"/>
+      <arc id="1439911712224" source="t30" target="p11"/>
+      <arc id="1439911712752" source="p11" target="t25"/>
+      <arc id="1439911711216" source="t5" target="p20"/>
+    </page>
+    <finalmarkings>
+      <marking>
+        <place idref="p23">
+          <text>1</text>
+        </place>
+      </marking>
+    </finalmarkings>
+  </net>
+</pnml>

@@ -1,0 +1,135 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<pnml>
+  <net id="new_petri_net" type="http://www.pnml.org/version-2009/grammar/pnmlcoremodel">
+    <name>
+      <text>new_petri_net</text>
+    </name>
+    <page id="n0">
+      <place id="p0">
+        <name>
+          <text>p0</text>
+        </name>
+      </place>
+      <place id="sink">
+        <name>
+          <text>sink</text>
+        </name>
+      </place>
+      <place id="source">
+        <name>
+          <text>source</text>
+        </name>
+        <initialMarking>
+          <text>1</text>
+        </initialMarking>
+      </place>
+      <place id="p11">
+        <name>
+          <text>p11</text>
+        </name>
+      </place>
+      <place id="p1">
+        <name>
+          <text>p1</text>
+        </name>
+      </place>
+      <place id="p12">
+        <name>
+          <text>p12</text>
+        </name>
+      </place>
+      <place id="p2">
+        <name>
+          <text>p2</text>
+        </name>
+      </place>
+      <place id="p3">
+        <name>
+          <text>p3</text>
+        </name>
+      </place>
+      <place id="p4">
+        <name>
+          <text>p4</text>
+        </name>
+      </place>
+      <place id="p5">
+        <name>
+          <text>p5</text>
+        </name>
+      </place>
+      <place id="p6">
+        <name>
+          <text>p6</text>
+        </name>
+      </place>
+      <transition id="a">
+        <name>
+          <text>a</text>
+        </name>
+      </transition>
+      <transition id="c">
+        <name>
+          <text>c</text>
+        </name>
+      </transition>
+      <transition id="h">
+        <name>
+          <text>h</text>
+        </name>
+      </transition>
+      <transition id="b">
+        <name>
+          <text>b</text>
+        </name>
+      </transition>
+      <transition id="e">
+        <name>
+          <text>e</text>
+        </name>
+      </transition>
+      <transition id="f">
+        <name>
+          <text>f</text>
+        </name>
+      </transition>
+      <transition id="d">
+        <name>
+          <text>d</text>
+        </name>
+      </transition>
+      <transition id="g">
+        <name>
+          <text>g</text>
+        </name>
+      </transition>
+      <arc id="2052129920528" source="p12" target="e"/>
+      <arc id="2052129920912" source="p0" target="g"/>
+      <arc id="2052129919376" source="c" target="p5"/>
+      <arc id="2052129919760" source="p11" target="f"/>
+      <arc id="2052129920144" source="p6" target="c"/>
+      <arc id="2052129921680" source="a" target="p12"/>
+      <arc id="2052129933728" source="h" target="sink"/>
+      <arc id="2052129919280" source="c" target="p3"/>
+      <arc id="2052129919664" source="p1" target="h"/>
+      <arc id="2052129920048" source="p4" target="b"/>
+      <arc id="2052129920432" source="e" target="p11"/>
+      <arc id="2052129921200" source="p5" target="f"/>
+      <arc id="2052136360496" source="source" target="a"/>
+      <arc id="2052129920720" source="b" target="p6"/>
+      <arc id="2052129919952" source="p2" target="h"/>
+      <arc id="2052129920336" source="g" target="p1"/>
+      <arc id="2052129921104" source="p3" target="d"/>
+      <arc id="2052129921488" source="f" target="p0"/>
+      <arc id="2052129920624" source="a" target="p4"/>
+      <arc id="2052129919856" source="d" target="p2"/>
+    </page>
+    <finalmarkings>
+      <marking>
+        <place idref="sink">
+          <text>1</text>
+        </place>
+      </marking>
+    </finalmarkings>
+  </net>
+</pnml>
