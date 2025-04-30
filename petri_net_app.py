@@ -387,7 +387,8 @@ def apply_simulation_path_classes(elements, simulation_path):
     [State('cytoscape-elements', 'data'),
      State('petri-net-log', 'data'),
      State('connection-mode', 'value'),
-     State('cytoscape-petri', 'selectedNodeData')]
+     State('cytoscape-petri', 'selectedNodeData')],
+    prevent_initial_call=True
 )
 def update_elements(add_place, add_transition, clear_graph, edge_data, elements, log_data, connection_mode, selected_nodes):
     if not ctx.triggered:
@@ -465,7 +466,8 @@ def update_cytoscape_graph(elements_data, simulation_state, selected_nodes):
     [Input('cytoscape-petri', 'tapNodeData')],
     [State('cytoscape-elements', 'data'),
      State('petri-net-log', 'data'),
-     State('connection-mode', 'value')]
+     State('connection-mode', 'value')],
+    prevent_initial_call=True
 )
 def handle_node_tap(node_data, elements, log_data, connection_mode):
     if not node_data:
@@ -488,7 +490,8 @@ def handle_node_tap(node_data, elements, log_data, connection_mode):
      Input('remove-token-btn', 'n_clicks')],
     [State('cytoscape-elements', 'data'),
      State('petri-net-log', 'data'),
-     State('cytoscape-petri', 'selectedNodeData')]
+     State('cytoscape-petri', 'selectedNodeData')],
+    prevent_initial_call=True
 )
 def handle_tokens(add_token, remove_token, elements, log_data, selected_nodes):
     if not ctx.triggered:
@@ -540,7 +543,8 @@ def handle_tokens(add_token, remove_token, elements, log_data, selected_nodes):
      Input('set-end-node-btn', 'n_clicks')],
     [State('cytoscape-petri', 'selectedNodeData'),
      State('selected-nodes', 'data'),
-     State('petri-net-log', 'data')]
+     State('petri-net-log', 'data')],
+    prevent_initial_call=True
 )
 def set_special_nodes(set_start, set_end, selected_node_data, current_selected_nodes, log_data):
     if not ctx.triggered or not selected_node_data or not selected_node_data[0]:
@@ -575,7 +579,8 @@ def set_special_nodes(set_start, set_end, selected_node_data, current_selected_n
     [Input('connection-mode', 'value')],
     [State('cytoscape-petri', 'selectedNodeData'),
      State('cytoscape-elements', 'data'),
-     State('petri-net-log', 'data')]
+     State('petri-net-log', 'data')],
+    prevent_initial_call=True
 )
 def handle_connection_mode(connection_mode, selected_nodes, elements, log_data):
     if connection_mode != 'connect' or not selected_nodes or len(selected_nodes) != 2:
@@ -619,7 +624,8 @@ def handle_connection_mode(connection_mode, selected_nodes, elements, log_data):
      Input('stop-simulation-btn', 'n_clicks')],
     [State('simulation-state', 'data'),
      State('cytoscape-elements', 'data'),
-     State('petri-net-log', 'data')]
+     State('petri-net-log', 'data')],
+    prevent_initial_call=True
 )
 def handle_simulation(run_sim, stop_sim, sim_state, elements, log_data):
     if not ctx.triggered:
