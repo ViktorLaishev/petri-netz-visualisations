@@ -10,14 +10,19 @@ from datetime import datetime
 # Load Cytoscape.js's Dagre extension for layout
 cyto.load_extra_layouts()
 
+
 # Initialize the Dash app
 app = dash.Dash(__name__, suppress_callback_exceptions=True)
 server = app.server
 
 # Global variables to track state
 initial_elements = [
+    
     # Default empty graph
 ]
+
+
+
 
 # Define styles for different node types
 stylesheet = [
@@ -387,7 +392,8 @@ def apply_simulation_path_classes(elements, simulation_path):
     [State('cytoscape-elements', 'data'),
      State('petri-net-log', 'data'),
      State('connection-mode', 'value'),
-     State('cytoscape-petri', 'selectedNodeData')]
+     State('cytoscape-petri', 'selectedNodeData')], 
+     prevent_initial_call=True#added
 )
 def update_elements(add_place, add_transition, clear_graph, edge_data, elements, log_data, connection_mode, selected_nodes):
     if not ctx.triggered:
@@ -431,7 +437,8 @@ def update_elements(add_place, add_transition, clear_graph, edge_data, elements,
     Output('cytoscape-petri', 'elements'),
     [Input('cytoscape-elements', 'data'),
      Input('simulation-state', 'data'),
-     Input('selected-nodes', 'data')]
+     Input('selected-nodes', 'data')],
+     prevent_initial_call=True#added
 )
 def update_cytoscape_graph(elements_data, simulation_state, selected_nodes):
     elements = elements_data.copy() if elements_data else []
@@ -465,7 +472,8 @@ def update_cytoscape_graph(elements_data, simulation_state, selected_nodes):
     [Input('cytoscape-petri', 'tapNodeData')],
     [State('cytoscape-elements', 'data'),
      State('petri-net-log', 'data'),
-     State('connection-mode', 'value')]
+     State('connection-mode', 'value')], 
+     prevent_initial_call=True#added
 )
 def handle_node_tap(node_data, elements, log_data, connection_mode):
     if not node_data:
@@ -488,7 +496,8 @@ def handle_node_tap(node_data, elements, log_data, connection_mode):
      Input('remove-token-btn', 'n_clicks')],
     [State('cytoscape-elements', 'data'),
      State('petri-net-log', 'data'),
-     State('cytoscape-petri', 'selectedNodeData')]
+     State('cytoscape-petri', 'selectedNodeData')], 
+     prevent_initial_call=True#added
 )
 def handle_tokens(add_token, remove_token, elements, log_data, selected_nodes):
     if not ctx.triggered:
@@ -540,7 +549,8 @@ def handle_tokens(add_token, remove_token, elements, log_data, selected_nodes):
      Input('set-end-node-btn', 'n_clicks')],
     [State('cytoscape-petri', 'selectedNodeData'),
      State('selected-nodes', 'data'),
-     State('petri-net-log', 'data')]
+     State('petri-net-log', 'data')], 
+     prevent_initial_call=True#added
 )
 def set_special_nodes(set_start, set_end, selected_node_data, current_selected_nodes, log_data):
     if not ctx.triggered or not selected_node_data or not selected_node_data[0]:
@@ -575,7 +585,8 @@ def set_special_nodes(set_start, set_end, selected_node_data, current_selected_n
     [Input('connection-mode', 'value')],
     [State('cytoscape-petri', 'selectedNodeData'),
      State('cytoscape-elements', 'data'),
-     State('petri-net-log', 'data')]
+     State('petri-net-log', 'data')], 
+     prevent_initial_call=True#added
 )
 def handle_connection_mode(connection_mode, selected_nodes, elements, log_data):
     if connection_mode != 'connect' or not selected_nodes or len(selected_nodes) != 2:
@@ -619,7 +630,8 @@ def handle_connection_mode(connection_mode, selected_nodes, elements, log_data):
      Input('stop-simulation-btn', 'n_clicks')],
     [State('simulation-state', 'data'),
      State('cytoscape-elements', 'data'),
-     State('petri-net-log', 'data')]
+     State('petri-net-log', 'data')], 
+     prevent_initial_call=True#added
 )
 def handle_simulation(run_sim, stop_sim, sim_state, elements, log_data):
     if not ctx.triggered:
@@ -674,7 +686,8 @@ def handle_simulation(run_sim, stop_sim, sim_state, elements, log_data):
 
 @callback(
     Output('token-counter', 'children'),
-    [Input('cytoscape-elements', 'data')]
+    [Input('cytoscape-elements', 'data')], 
+    prevent_initial_call=True#added
 )
 def update_token_counter(elements):
     total_tokens = count_tokens(elements)
@@ -682,7 +695,8 @@ def update_token_counter(elements):
 
 @callback(
     Output('simulation-log-table', 'children'),
-    [Input('petri-net-log', 'data')]
+    [Input('petri-net-log', 'data')], 
+    prevent_initial_call=True#added
 )
 def update_log_table(log_data):
     if not log_data:
