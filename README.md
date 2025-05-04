@@ -1,73 +1,171 @@
-# Welcome to your Lovable project
 
-## Project info
+# Petri Net Flow Visualizer
 
-**URL**: https://lovable.dev/projects/d7239943-cd3c-4640-a50d-0286bf12e338
+A React-based interactive web application for visualizing and simulating Petri nets with token flows.
 
-## How can I edit this code?
+## Project Overview
 
-There are several ways of editing your application.
+This project is a visualization tool for Petri nets that allows users to:
+- Create places and transitions
+- Connect nodes to form a Petri net graph
+- Apply various transformation rules to the graph
+- Simulate token flow through the network
+- Generate logs of all operations
 
-**Use Lovable**
+The application is built using modern web technologies and provides an intuitive interface for working with Petri net models.
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/d7239943-cd3c-4640-a50d-0286bf12e338) and start prompting.
+## Tech Stack
 
-Changes made via Lovable will be committed automatically to this repo.
+- **Frontend Framework**: React with TypeScript
+- **Styling**: Tailwind CSS
+- **UI Components**: shadcn/ui library (based on Radix UI)
+- **Graph Visualization**: Cytoscape.js
+- **State Management**: React Context API
+- **Build Tool**: Vite
+- **Routing**: React Router
 
-**Use your preferred IDE**
+## Project Structure
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Core Files
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+- `src/main.tsx` - Application entry point
+- `src/App.tsx` - Main application component with routing setup
+- `src/index.css` - Global CSS styles
 
-Follow these steps:
+### Pages
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+- `src/pages/Index.tsx` - Main page with the Petri net interface (control panel, visualization area, log table, token counter)
+- `src/pages/NotFound.tsx` - 404 page
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+### Components
 
-# Step 3: Install the necessary dependencies.
-npm i
+- `src/components/PetriNetGraph.tsx` - Graph visualization component using Cytoscape.js
+- `src/components/LogTable.tsx` - Table displaying operation logs
+- `src/components/TokenCounter.tsx` - Component showing token counts in places
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+### State Management
 
-**Edit a file directly in GitHub**
+- `src/contexts/PetriNetContext.tsx` - Context provider for Petri net state and operations:
+  - Graph state (nodes, edges)
+  - Token positioning and flow
+  - Simulation state
+  - Operation history and logs
+  - Implementation of all Petri net operations and transformation rules
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### UI Components
 
-**Use GitHub Codespaces**
+The project uses the shadcn/ui component library, which provides pre-built UI components:
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+- `src/components/ui/` - Contains all shadcn/ui components:
+  - `button.tsx` - Button components
+  - `card.tsx` - Card container components
+  - `input.tsx` - Input field components
+  - `select.tsx` - Dropdown select components
+  - `tabs.tsx` - Tab navigation components
+  - `toast.tsx` - Toast notification components
+  - And many more utility UI components
 
-## What technologies are used for this project?
+### Python Implementation
 
-This project is built with:
+The repository also includes `petri_net_app.py`, which is an alternative implementation of the Petri net visualizer using Python with Dash and dash-cytoscape. This is separate from the React implementation and can be run independently.
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## Key Features
 
-## How can I deploy this project?
+### Node Creation and Management
 
-Simply open [Lovable](https://lovable.dev/projects/d7239943-cd3c-4640-a50d-0286bf12e338) and click on Share -> Publish.
+- Add places (circular nodes)
+- Add transitions (rectangular nodes)
+- Connect nodes with directed edges
+- Add/remove tokens from places
 
-## Can I connect a custom domain to my Lovable project?
+### Transformation Rules
 
-Yes, you can!
+- **Abstraction ψA** - Replaces a direct connection with an intermediate place and transition
+- **Linear Transition ψT** - Creates a new transition from a place
+- **Linear Place ψP** - Creates a new place leading to a transition
+- **Dual Abstraction ψD** - Combines abstraction with linear transition
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+### Simulation
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+- Set token flow start and end points
+- Animate token movement through the Petri net
+- View process logs of token movement
+- Track token counts in different places
+
+### Batch Operations
+
+- Apply multiple rules at once
+- Choose specific rules or use random selection
+- Generate complex Petri nets quickly
+
+## UI Layout
+
+The user interface is divided into several key areas:
+
+1. **Left Panel (Control Panel)**
+   - Tabs for different operations (Nodes, Rules, Flow, Batch)
+   - Controls for adding nodes, applying rules, setting token flow, and batch operations
+   - Undo and reset buttons
+
+2. **Main Graph View**
+   - Interactive visualization of the Petri net
+   - Controls for starting/stopping simulation and centering the graph
+
+3. **Bottom Panel**
+   - Process log table showing operation history
+   - Token counter displaying the number of tokens in each place
+
+## Getting Started
+
+1. Install dependencies:
+   ```
+   npm install
+   ```
+
+2. Start the development server:
+   ```
+   npm run dev
+   ```
+
+3. Open your browser and navigate to the URL shown in the terminal (typically `http://localhost:5173`)
+
+## Development Guidelines
+
+### Adding New Components
+
+1. Create a new component in the appropriate directory
+2. For UI components, consider using shadcn/ui as a foundation
+3. Import the component where needed
+
+### Modifying Petri Net Logic
+
+The core logic for Petri net operations is in `src/contexts/PetriNetContext.tsx`. This includes:
+
+- Node and edge management
+- Rule implementations
+- Simulation logic
+- History tracking
+
+### Styling Components
+
+The project uses Tailwind CSS for styling. To add or modify styles:
+
+1. Use Tailwind utility classes directly in the component
+2. For complex components, consider creating a dedicated CSS file
+3. Global styles can be added to `src/index.css`
+
+## Python Implementation
+
+The `petri_net_app.py` file contains a Python implementation using Dash and dash-cytoscape. To run it:
+
+1. Install required Python packages:
+   ```
+   pip install dash dash-cytoscape pandas networkx
+   ```
+
+2. Run the application:
+   ```
+   python petri_net_app.py
+   ```
+
+This will start a web server, and you can access the application by navigating to the URL shown in the terminal (typically `http://127.0.0.1:8050`).
