@@ -18,7 +18,11 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Index />} />
+          <Route path="/" element={
+            <PetriNetProvider>
+              <Index />
+            </PetriNetProvider>
+          } />
           <Route 
             path="/event-log" 
             element={
