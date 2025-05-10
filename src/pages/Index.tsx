@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -11,7 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { AlertCircle, PlayCircle, Undo, RefreshCw, Plus, ArrowRight, Download, ZoomIn, FileChart } from "lucide-react";
+import { AlertCircle, PlayCircle, Undo, RefreshCw, Plus, ArrowRight, Download, ZoomIn, FileText } from "lucide-react";
 import { toast } from "sonner";
 import PetriNetGraph from "@/components/PetriNetGraph";
 import { PetriNetProvider, usePetriNet } from "@/contexts/PetriNetContext";
@@ -31,7 +30,7 @@ const Index = () => {
               </div>
               <Link to="/event-log">
                 <Button variant="outline" className="gap-2">
-                  <FileChart className="h-4 w-4" />
+                  <FileText className="h-4 w-4" />
                   View Event Log
                 </Button>
               </Link>
