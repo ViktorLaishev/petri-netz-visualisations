@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import EventLog from "./pages/EventLog";
 import NotFound from "./pages/NotFound";
+import { PetriNetProvider } from "./contexts/PetriNetContext";
 
 const queryClient = new QueryClient();
 
@@ -18,7 +19,14 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
-          <Route path="/event-log" element={<EventLog />} />
+          <Route 
+            path="/event-log" 
+            element={
+              <PetriNetProvider>
+                <EventLog />
+              </PetriNetProvider>
+            } 
+          />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
