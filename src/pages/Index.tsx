@@ -1,4 +1,6 @@
+
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,7 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { AlertCircle, PlayCircle, Undo, RefreshCw, Plus, ArrowRight, Download, ZoomIn } from "lucide-react";
+import { AlertCircle, PlayCircle, Undo, RefreshCw, Plus, ArrowRight, Download, ZoomIn, FileChart } from "lucide-react";
 import { toast } from "sonner";
 import PetriNetGraph from "@/components/PetriNetGraph";
 import { PetriNetProvider, usePetriNet } from "@/contexts/PetriNetContext";
@@ -22,8 +24,18 @@ const Index = () => {
       <PetriNetProvider>
         <div className="container mx-auto p-4">
           <header className="mb-6">
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50">Petri Net Flow Visualizer</h1>
-            <p className="text-slate-500 dark:text-slate-400">Interactive visualization tool for Petri nets and token flows</p>
+            <div className="flex justify-between items-center">
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50">Petri Net Flow Visualizer</h1>
+                <p className="text-slate-500 dark:text-slate-400">Interactive visualization tool for Petri nets and token flows</p>
+              </div>
+              <Link to="/event-log">
+                <Button variant="outline" className="gap-2">
+                  <FileChart className="h-4 w-4" />
+                  View Event Log
+                </Button>
+              </Link>
+            </div>
           </header>
           
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

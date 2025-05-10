@@ -26,6 +26,19 @@ interface LogEntry {
   action: string;
 }
 
+interface PathNode {
+  id: string;
+  type: NodeType;
+}
+
+interface Path {
+  sequence: PathNode[];
+}
+
+interface EventLog {
+  paths: Path[];
+}
+
 interface PetriNetState {
   graph: Graph;
   log: LogEntry[];
@@ -36,6 +49,7 @@ interface PetriNetState {
     targetId: string;
     progress: number;
   }[];
+  eventLog: EventLog;
 }
 
 interface PetriNetContextType {
@@ -53,6 +67,8 @@ interface PetriNetContextType {
   stopSimulation: () => void;
   centerGraph: () => void;
   downloadLog: () => void;
+  generateEventLog: () => Promise<void>;
+  downloadEventLog: () => void;
 }
 
 // Create context
@@ -196,7 +212,8 @@ type ActionType =
   | { type: 'STOP_SIMULATION' }
   | { type: 'UPDATE_TOKEN_ANIMATION'; progress: number }
   | { type: 'COMPLETE_SIMULATION' }
-  | { type: 'CENTER_GRAPH' };
+  | { type: 'CENTER_GRAPH' }
+  | { type: 'SET_EVENT_LOG', paths: Path[] };
 
 // Helper function to add to history
 const pushHistory = (state: PetriNetState): PetriNetState => {
@@ -530,6 +547,14 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
     case 'CENTER_GRAPH': {
       return state; // Actual centering is handled in the component
     }
+    
+    case 'SET_EVENT_LOG':
+      return {
+        ...state,
+        eventLog: {
+          paths: action.paths
+        }
+      };
       
     default:
       return state;
@@ -543,7 +568,10 @@ export const PetriNetProvider: React.FC<{ children: ReactNode }> = ({ children }
     log: [],
     history: [],
     simulationActive: false,
-    animatingTokens: []
+    animatingTokens: [],
+    eventLog: {
+      paths: []
+    }
   });
   
   // Animation effect for token movement
@@ -574,6 +602,71 @@ export const PetriNetProvider: React.FC<{ children: ReactNode }> = ({ children }
       };
     }
   }, [state.simulationActive, state.animatingTokens]);
+  
+  // Find all possible paths in the Petri net
+  const generateAllPaths = async (graph: Graph): Promise<Path[]> => {
+    // Find all place nodes that have no incoming edges (potential start points)
+    const startPlaces = graph.nodes.filter(node => 
+      node.type === 'place' && 
+      !graph.edges.some(edge => edge.target === node.id)
+    );
+    
+    // If no start places found, use places with tokens
+    const places = startPlaces.length > 0 
+      ? startPlaces 
+      : graph.nodes.filter(node => node.type === 'place' && (node.tokens && node.tokens > 0));
+      
+    // If still no places, use the first place
+    const startNodes = places.length > 0 
+      ? places 
+      : graph.nodes.filter(node => node.type === 'place').slice(0, 1);
+      
+    if (startNodes.length === 0) return [];
+    
+    const allPaths: Path[] = [];
+    
+    // For each start node, find all possible paths
+    for (const startNode of startNodes) {
+      const paths = findPathsFromNode(graph, startNode.id, []);
+      allPaths.push(...paths);
+    }
+    
+    return allPaths;
+  };
+  
+  // Helper function to find paths from a node
+  const findPathsFromNode = (graph: Graph, nodeId: string, visited: string[]): Path[] => {
+    // Check if we've already visited this node to prevent cycles
+    if (visited.includes(nodeId)) {
+      return [];
+    }
+    
+    const node = graph.nodes.find(n => n.id === nodeId);
+    if (!node) return [];
+    
+    const newVisited = [...visited, nodeId];
+    const outgoingEdges = graph.edges.filter(edge => edge.source === nodeId);
+    
+    // If no outgoing edges, this is a leaf node, return a path with just this node
+    if (outgoingEdges.length === 0) {
+      return [{
+        sequence: newVisited.map(id => {
+          const n = graph.nodes.find(n => n.id === id);
+          return { id, type: n?.type || 'place' };
+        })
+      }];
+    }
+    
+    const paths: Path[] = [];
+    
+    // For each outgoing edge, recursively find paths
+    for (const edge of outgoingEdges) {
+      const targetPaths = findPathsFromNode(graph, edge.target, newVisited);
+      paths.push(...targetPaths);
+    }
+    
+    return paths;
+  };
   
   // Context value
   const value = {
@@ -606,6 +699,40 @@ export const PetriNetProvider: React.FC<{ children: ReactNode }> = ({ children }
       const link = document.createElement('a');
       link.href = url;
       link.setAttribute('download', 'petri_net_log.csv');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    },
+    generateEventLog: async () => {
+      try {
+        const paths = await generateAllPaths(state.graph);
+        dispatch({ type: 'SET_EVENT_LOG', paths });
+        return Promise.resolve();
+      } catch (error) {
+        console.error("Error generating event log:", error);
+        return Promise.reject(error);
+      }
+    },
+    downloadEventLog: () => {
+      // Create CSV from event log paths
+      const headers = "Path ID,Sequence,Length,Start,End\n";
+      const rows = state.eventLog.paths.map((path, index) => {
+        const sequence = path.sequence.map(node => node.id).join(" → ");
+        const length = path.sequence.length;
+        const start = path.sequence[0]?.id || "N/A";
+        const end = path.sequence[path.sequence.length - 1]?.id || "N/A";
+        
+        return `${index + 1},"${sequence}",${length},"${start}","${end}"`;
+      }).join("\n");
+      
+      const csv = headers + rows;
+      
+      // Create and trigger download
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'petri_net_event_log.csv');
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
