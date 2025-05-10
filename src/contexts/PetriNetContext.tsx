@@ -299,7 +299,7 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
         return state;
       }
       
-      const newState = pushHistory(state);
+      let newState = pushHistory(state);
       const newGraph = {
         ...newState.graph,
         nodes: [
@@ -328,7 +328,7 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
         return state;
       }
       
-      const newState = pushHistory(state);
+      let newState = pushHistory(state);
       const newGraph = {
         ...newState.graph,
         nodes: [
@@ -362,7 +362,7 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
         return state;
       }
       
-      const newState = pushHistory(state);
+      let newState = pushHistory(state);
       const newGraph = {
         ...newState.graph,
         edges: [...newState.graph.edges, { source: action.source, target: action.target }]
@@ -398,7 +398,7 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
         return state;
       }
       
-      const newState = pushHistory(state);
+      let newState = pushHistory(state);
       const newGraph = ruleInfo.fn(newState.graph, target);
       
       newState = addLogEntry({
@@ -427,7 +427,7 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
       // Select a random target
       const randomTarget = validTargets[Math.floor(Math.random() * validTargets.length)];
       
-      const newState = pushHistory(state);
+      let newState = pushHistory(state);
       const newGraph = ruleInfo.fn(newState.graph, randomTarget.id);
       
       newState = addLogEntry({
@@ -503,7 +503,7 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
         return state;
       }
       
-      const newState = pushHistory(state);
+      let newState = pushHistory(state);
       const newGraph = {
         ...newState.graph,
         nodes: newState.graph.nodes.map(node => {
