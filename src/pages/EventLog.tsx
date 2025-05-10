@@ -11,10 +11,10 @@ import EventLogTable from "@/components/EventLogTable";
 const EventLog: React.FC = () => {
   const { state, generateEventLog, downloadEventLog } = usePetriNet();
   const [isGenerating, setIsGenerating] = useState(false);
-
+  
+  // Always regenerate event log when component mounts
   useEffect(() => {
-    // Generate event log when component mounts if not already generated
-    if (state.eventLog.paths.length === 0 && state.graph.nodes.length > 0) {
+    if (state.graph.nodes.length > 0) {
       handleGenerateEventLog();
     }
   }, []);
