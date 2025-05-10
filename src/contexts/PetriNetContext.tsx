@@ -39,6 +39,15 @@ interface EventLog {
   paths: Path[];
 }
 
+interface SavedPetriNet {
+  id: string;
+  name: string;
+  timestamp: number;
+  graph: Graph;
+  log: LogEntry[];
+  eventLog: EventLog;
+}
+
 interface PetriNetState {
   graph: Graph;
   log: LogEntry[];
@@ -50,6 +59,8 @@ interface PetriNetState {
     progress: number;
   }[];
   eventLog: EventLog;
+  savedNets: SavedPetriNet[];
+  currentNetId: string | null;
 }
 
 interface PetriNetContextType {
@@ -69,6 +80,11 @@ interface PetriNetContextType {
   downloadLog: () => void;
   generateEventLog: () => Promise<void>;
   downloadEventLog: () => void;
+  savePetriNet: (name: string) => void;
+  loadPetriNet: (id: string) => void;
+  deletePetriNet: (id: string) => void;
+  renamePetriNet: (id: string, newName: string) => void;
+  savedNets: SavedPetriNet[];
 }
 
 // Create context
@@ -213,7 +229,11 @@ type ActionType =
   | { type: 'UPDATE_TOKEN_ANIMATION'; progress: number }
   | { type: 'COMPLETE_SIMULATION' }
   | { type: 'CENTER_GRAPH' }
-  | { type: 'SET_EVENT_LOG', paths: Path[] };
+  | { type: 'SET_EVENT_LOG', paths: Path[] }
+  | { type: 'SAVE_PETRI_NET', name: string }
+  | { type: 'LOAD_PETRI_NET', id: string }
+  | { type: 'DELETE_PETRI_NET', id: string }
+  | { type: 'RENAME_PETRI_NET', id: string, newName: string };
 
 // Helper function to add to history
 const pushHistory = (state: PetriNetState): PetriNetState => {
@@ -239,6 +259,7 @@ const addLogEntry = (state: PetriNetState, action: string): PetriNetState => {
 
 // Storage keys
 const STORAGE_KEY = 'petriNetState';
+const SAVED_NETS_KEY = 'petriNetSavedNets';
 
 // Save state to localStorage
 const saveStateToStorage = (state: PetriNetState) => {
@@ -268,6 +289,33 @@ const loadStateFromStorage = (): PetriNetState | undefined => {
   return undefined;
 };
 
+// Save saved nets to localStorage
+const saveSavedNetsToStorage = (savedNets: SavedPetriNet[]) => {
+  try {
+    localStorage.setItem(SAVED_NETS_KEY, JSON.stringify(savedNets));
+  } catch (error) {
+    console.error('Failed to save nets to localStorage:', error);
+  }
+};
+
+// Load saved nets from localStorage
+const loadSavedNetsFromStorage = (): SavedPetriNet[] => {
+  try {
+    const savedNets = localStorage.getItem(SAVED_NETS_KEY);
+    if (savedNets) {
+      return JSON.parse(savedNets) as SavedPetriNet[];
+    }
+  } catch (error) {
+    console.error('Failed to load saved nets from localStorage:', error);
+  }
+  return [];
+};
+
+// Generate a unique ID
+const generateId = () => {
+  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+};
+
 // Reducer function
 const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetState => {
   let newState: PetriNetState;
@@ -288,6 +336,7 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
         ...pushHistory(state),
         graph: initialGraph(),
         log: [],
+        currentNetId: null,
       };
       saveStateToStorage(newState);
       return newState;
@@ -618,6 +667,79 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
       saveStateToStorage(newState);
       return newState;
     }
+    
+    case 'SAVE_PETRI_NET': {
+      const id = generateId();
+      const newSavedNet: SavedPetriNet = {
+        id,
+        name: action.name,
+        timestamp: Date.now(),
+        graph: state.graph,
+        log: state.log,
+        eventLog: state.eventLog
+      };
+      
+      const updatedSavedNets = [...state.savedNets, newSavedNet];
+      
+      newState = {
+        ...state,
+        savedNets: updatedSavedNets,
+        currentNetId: id
+      };
+      
+      saveSavedNetsToStorage(updatedSavedNets);
+      saveStateToStorage(newState);
+      return newState;
+    }
+    
+    case 'LOAD_PETRI_NET': {
+      const netToLoad = state.savedNets.find(net => net.id === action.id);
+      if (!netToLoad) {
+        toast.error("Could not find the requested Petri net");
+        return state;
+      }
+      
+      newState = {
+        ...state,
+        graph: netToLoad.graph,
+        log: netToLoad.log,
+        eventLog: netToLoad.eventLog,
+        history: [],
+        currentNetId: netToLoad.id
+      };
+      
+      saveStateToStorage(newState);
+      return newState;
+    }
+    
+    case 'DELETE_PETRI_NET': {
+      const updatedSavedNets = state.savedNets.filter(net => net.id !== action.id);
+      
+      newState = {
+        ...state,
+        savedNets: updatedSavedNets,
+        currentNetId: state.currentNetId === action.id ? null : state.currentNetId
+      };
+      
+      saveSavedNetsToStorage(updatedSavedNets);
+      saveStateToStorage(newState);
+      return newState;
+    }
+    
+    case 'RENAME_PETRI_NET': {
+      const updatedSavedNets = state.savedNets.map(net => 
+        net.id === action.id ? { ...net, name: action.newName } : net
+      );
+      
+      newState = {
+        ...state,
+        savedNets: updatedSavedNets
+      };
+      
+      saveSavedNetsToStorage(updatedSavedNets);
+      saveStateToStorage(newState);
+      return newState;
+    }
       
     default:
       return state;
@@ -626,6 +748,9 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
 
 // Provider component
 export const PetriNetProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  // Load the saved nets first
+  const initialSavedNets = loadSavedNetsFromStorage();
+  
   // Try to load the initial state from localStorage or use the default initial state
   const savedState = loadStateFromStorage();
   const initialState: PetriNetState = savedState || {
@@ -634,10 +759,15 @@ export const PetriNetProvider: React.FC<{ children: ReactNode }> = ({ children }
     history: [],
     simulationActive: false,
     animatingTokens: [],
-    eventLog: {
-      paths: []
-    }
+    eventLog: { paths: [] },
+    savedNets: initialSavedNets,
+    currentNetId: null
   };
+
+  // Ensure savedNets are loaded even if the main state was loaded
+  if (savedState && !savedState.savedNets) {
+    initialState.savedNets = initialSavedNets;
+  }
 
   const [state, dispatch] = useReducer(petriNetReducer, initialState);
   
@@ -803,7 +933,13 @@ export const PetriNetProvider: React.FC<{ children: ReactNode }> = ({ children }
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-    }
+    },
+    savePetriNet: (name: string) => dispatch({ type: 'SAVE_PETRI_NET', name }),
+    loadPetriNet: (id: string) => dispatch({ type: 'LOAD_PETRI_NET', id }),
+    deletePetriNet: (id: string) => dispatch({ type: 'DELETE_PETRI_NET', id }),
+    renamePetriNet: (id: string, newName: string) => 
+      dispatch({ type: 'RENAME_PETRI_NET', id, newName }),
+    savedNets: state.savedNets
   };
   
   return (
