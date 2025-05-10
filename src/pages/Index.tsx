@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -10,87 +11,119 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { AlertCircle, PlayCircle, Undo, RefreshCw, Plus, ArrowRight, Download, ZoomIn, FileText } from "lucide-react";
+import { AlertCircle, PlayCircle, Undo, RefreshCw, Plus, ArrowRight, Download, ZoomIn, FileText, Save, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
 import PetriNetGraph from "@/components/PetriNetGraph";
 import { PetriNetProvider, usePetriNet } from "@/contexts/PetriNetContext";
 import LogTable from "@/components/LogTable";
 import TokenCounter from "@/components/TokenCounter";
+import SavePetriNetDialog from "@/components/SavePetriNetDialog";
 
 const Index = () => {
+  const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
+  const { state } = usePetriNet();
+
+  const openSaveDialog = () => {
+    setIsSaveDialogOpen(true);
+  };
+
+  const closeSaveDialog = () => {
+    setIsSaveDialogOpen(false);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
-      <PetriNetProvider>
-        <div className="container mx-auto p-4">
-          <header className="mb-6">
-            <div className="flex justify-between items-center">
-              <div>
-                <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50">Petri Net Flow Visualizer</h1>
-                <p className="text-slate-500 dark:text-slate-400">Interactive visualization tool for Petri nets and token flows</p>
-              </div>
+      <div className="container mx-auto p-4">
+        <header className="mb-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
+                Petri Net Flow Visualizer
+                {state.currentNetId && (
+                  <Badge variant="outline" className="ml-3">
+                    {state.savedNets.find(net => net.id === state.currentNetId)?.name || "Unnamed Net"}
+                  </Badge>
+                )}
+              </h1>
+              <p className="text-slate-500 dark:text-slate-400">Interactive visualization tool for Petri nets and token flows</p>
+            </div>
+            <div className="flex gap-2">
               <Link to="/event-log">
                 <Button variant="outline" className="gap-2">
                   <FileText className="h-4 w-4" />
                   View Event Log
                 </Button>
               </Link>
-            </div>
-          </header>
-          
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Left Panel - Controls */}
-            <div className="lg:col-span-3">
-              <ControlPanel />
-            </div>
-            
-            {/* Right Panel - Visualization */}
-            <div className="lg:col-span-9">
-              <Card className="h-full">
-                <CardHeader className="pb-0">
-                  <div className="flex justify-between items-center">
-                    <CardTitle>Petri Net Visualization</CardTitle>
-                    <div className="flex gap-2">
-                      <StartSimulationButton />
-                      <StopSimulationButton />
-                      <CenterGraphButton />
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-4">
-                  <div className="h-[600px] border rounded-md">
-                    <PetriNetGraph />
-                  </div>
-                </CardContent>
-              </Card>
+              <Link to="/saved-nets">
+                <Button variant="outline" className="gap-2">
+                  <FolderOpen className="h-4 w-4" />
+                  Saved Nets
+                </Button>
+              </Link>
+              <Button variant="default" className="gap-2" onClick={openSaveDialog}>
+                <Save className="h-4 w-4" />
+                Save
+              </Button>
             </div>
           </div>
+        </header>
+        
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Left Panel - Controls */}
+          <div className="lg:col-span-3">
+            <ControlPanel />
+          </div>
           
-          <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Log Table */}
-            <Card>
+          {/* Right Panel - Visualization */}
+          <div className="lg:col-span-9">
+            <Card className="h-full">
               <CardHeader className="pb-0">
                 <div className="flex justify-between items-center">
-                  <CardTitle>Process Log</CardTitle>
-                  <DownloadLogButton />
+                  <CardTitle>Petri Net Visualization</CardTitle>
+                  <div className="flex gap-2">
+                    <StartSimulationButton />
+                    <StopSimulationButton />
+                    <CenterGraphButton />
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="pt-4">
-                <LogTable />
-              </CardContent>
-            </Card>
-            
-            {/* Token Counts */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Token Counts</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <TokenCounter />
+                <div className="h-[600px] border rounded-md">
+                  <PetriNetGraph />
+                </div>
               </CardContent>
             </Card>
           </div>
         </div>
-      </PetriNetProvider>
+        
+        <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Log Table */}
+          <Card>
+            <CardHeader className="pb-0">
+              <div className="flex justify-between items-center">
+                <CardTitle>Process Log</CardTitle>
+                <DownloadLogButton />
+              </div>
+            </CardHeader>
+            <CardContent className="pt-4">
+              <LogTable />
+            </CardContent>
+          </Card>
+          
+          {/* Token Counts */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Token Counts</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <TokenCounter />
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Save Dialog */}
+      <SavePetriNetDialog isOpen={isSaveDialogOpen} onClose={closeSaveDialog} />
     </div>
   );
 };
