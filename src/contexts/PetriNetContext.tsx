@@ -237,8 +237,41 @@ const addLogEntry = (state: PetriNetState, action: string): PetriNetState => {
   };
 };
 
+// Storage keys
+const STORAGE_KEY = 'petriNetState';
+
+// Save state to localStorage
+const saveStateToStorage = (state: PetriNetState) => {
+  try {
+    // Don't save simulation active state or animating tokens
+    const stateToSave = {
+      ...state,
+      simulationActive: false,
+      animatingTokens: []
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
+  } catch (error) {
+    console.error('Failed to save state to localStorage:', error);
+  }
+};
+
+// Load state from localStorage
+const loadStateFromStorage = (): PetriNetState | undefined => {
+  try {
+    const savedState = localStorage.getItem(STORAGE_KEY);
+    if (savedState) {
+      return JSON.parse(savedState) as PetriNetState;
+    }
+  } catch (error) {
+    console.error('Failed to load state from localStorage:', error);
+  }
+  return undefined;
+};
+
 // Reducer function
 const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetState => {
+  let newState: PetriNetState;
+  
   switch (action.type) {
     case 'UNDO':
       if (state.history.length === 0) return state;
@@ -251,11 +284,13 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
       };
       
     case 'RESET':
-      return {
+      newState = {
         ...pushHistory(state),
         graph: initialGraph(),
         log: [],
       };
+      saveStateToStorage(newState);
+      return newState;
       
     case 'ADD_PLACE': {
       // Check if place already exists
@@ -277,10 +312,13 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
         ]
       };
       
-      return addLogEntry({
+      newState = addLogEntry({
         ...newState,
         graph: newGraph
       }, `Added place ${action.id}`);
+      
+      saveStateToStorage(newState);
+      return newState;
     }
       
     case 'ADD_TRANSITION': {
@@ -302,10 +340,13 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
         ]
       };
       
-      return addLogEntry({
+      newState = addLogEntry({
         ...newState,
         graph: newGraph
       }, `Added transition ${action.id}`);
+      
+      saveStateToStorage(newState);
+      return newState;
     }
       
     case 'CONNECT_NODES': {
@@ -327,10 +368,13 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
         edges: [...newState.graph.edges, { source: action.source, target: action.target }]
       };
       
-      return addLogEntry({
+      newState = addLogEntry({
         ...newState,
         graph: newGraph
       }, `Connected ${action.source}->${action.target}`);
+      
+      saveStateToStorage(newState);
+      return newState;
     }
       
     case 'APPLY_RULE': {
@@ -357,10 +401,13 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
       const newState = pushHistory(state);
       const newGraph = ruleInfo.fn(newState.graph, target);
       
-      return addLogEntry({
+      newState = addLogEntry({
         ...newState,
         graph: newGraph
       }, `Applied ${rule} on ${target}`);
+      
+      saveStateToStorage(newState);
+      return newState;
     }
     
     case 'APPLY_RANDOM_RULE': {
@@ -383,10 +430,13 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
       const newState = pushHistory(state);
       const newGraph = ruleInfo.fn(newState.graph, randomTarget.id);
       
-      return addLogEntry({
+      newState = addLogEntry({
         ...newState,
         graph: newGraph
       }, `Random ${randomRule} on ${randomTarget.id}`);
+      
+      saveStateToStorage(newState);
+      return newState;
     }
       
     case 'GENERATE_BATCH': {
@@ -427,10 +477,13 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
         }
       }
       
-      return {
+      newState = {
         ...newState,
         graph: newGraph
       };
+      
+      saveStateToStorage(newState);
+      return newState;
     }
       
     case 'SET_TOKEN_FLOW': {
@@ -461,10 +514,13 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
         })
       };
       
-      return addLogEntry({
+      newState = addLogEntry({
         ...newState,
         graph: newGraph
       }, `Flow start=${start},end=${end}`);
+      
+      saveStateToStorage(newState);
+      return newState;
     }
       
     case 'START_SIMULATION': {
@@ -536,25 +592,32 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
         });
       });
       
-      return addLogEntry({
+      newState = addLogEntry({
         ...state,
         graph: newGraph,
         simulationActive: false,
         animatingTokens: []
       }, `Simulation completed`);
+      
+      saveStateToStorage(newState);
+      return newState;
     }
     
     case 'CENTER_GRAPH': {
       return state; // Actual centering is handled in the component
     }
     
-    case 'SET_EVENT_LOG':
-      return {
+    case 'SET_EVENT_LOG': {
+      newState = {
         ...state,
         eventLog: {
           paths: action.paths
         }
       };
+      
+      saveStateToStorage(newState);
+      return newState;
+    }
       
     default:
       return state;
@@ -563,7 +626,9 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
 
 // Provider component
 export const PetriNetProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [state, dispatch] = useReducer(petriNetReducer, {
+  // Try to load the initial state from localStorage or use the default initial state
+  const savedState = loadStateFromStorage();
+  const initialState: PetriNetState = savedState || {
     graph: initialGraph(),
     log: [],
     history: [],
@@ -572,7 +637,9 @@ export const PetriNetProvider: React.FC<{ children: ReactNode }> = ({ children }
     eventLog: {
       paths: []
     }
-  });
+  };
+
+  const [state, dispatch] = useReducer(petriNetReducer, initialState);
   
   // Animation effect for token movement
   useEffect(() => {

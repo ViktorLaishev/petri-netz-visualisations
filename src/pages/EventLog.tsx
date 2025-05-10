@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Download } from "lucide-react";
+import { ArrowLeft, Download, RefreshCw } from "lucide-react";
 import { usePetriNet } from "@/contexts/PetriNetContext";
 import { toast } from "sonner";
 import EventLogTable from "@/components/EventLogTable";
@@ -61,7 +61,17 @@ const EventLog: React.FC = () => {
               onClick={handleGenerateEventLog}
               disabled={isGenerating}
             >
-              {isGenerating ? "Generating..." : "Regenerate Log"}
+              {isGenerating ? (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Regenerate Log
+                </>
+              )}
             </Button>
             <Button 
               variant="default" 
