@@ -16,25 +16,16 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={
-            <PetriNetProvider>
-              <Index />
-            </PetriNetProvider>
-          } />
-          <Route 
-            path="/event-log" 
-            element={
-              <PetriNetProvider>
-                <EventLog />
-              </PetriNetProvider>
-            } 
-          />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+      <PetriNetProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/event-log" element={<EventLog />} />
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </PetriNetProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );
