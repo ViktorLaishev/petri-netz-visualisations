@@ -1,1158 +1,742 @@
-import React, { createContext, useContext, useState, useReducer, useEffect, ReactNode } from "react";
-import { toast } from "sonner";
-
-// Define types
-type NodeType = 'place' | 'transition';
-
-interface Node {
-  id: string;
-  type: NodeType;
-  tokens?: number;
-}
-
-interface Edge {
-  source: string;
-  target: string;
-}
-
-interface Graph {
-  nodes: Node[];
-  edges: Edge[];
-}
-
-interface LogEntry {
-  id: number;
-  timestamp: string;
-  action: string;
-}
-
-interface PathNode {
-  id: string;
-  type: NodeType;
-}
-
-interface Path {
-  sequence: PathNode[];
-}
-
-interface EventLog {
-  paths: Path[];
-}
-
-interface SavedPetriNet {
-  id: string;
-  name: string;
-  timestamp: number;
-  graph: Graph;
-  log: LogEntry[];
-  eventLog: EventLog;
-}
-
-// Added RuleWeight interface for weighted randomization
-interface RuleWeight {
-  rule: string;
-  weight: number; // Weight as a percentage (0-100)
-}
-
-interface PetriNetState {
-  graph: Graph;
-  log: LogEntry[];
-  history: { graph: Graph; log: LogEntry[] }[];
-  simulationActive: boolean;
-  animatingTokens: {
-    sourceId: string;
-    targetId: string;
-    progress: number;
-  }[];
-  eventLog: EventLog;
-  savedNets: SavedPetriNet[];
-  currentNetId: string | null;
-}
+import React, { createContext, useContext, useReducer, useEffect, useCallback } from "react";
+import { v4 as uuidv4 } from "uuid";
+import { petriNetReducer, initialState } from "@/reducers/PetriNetReducer";
+import { PetriNetState, PetriNetAction, Node, Edge } from "@/types/PetriNet";
 
 interface PetriNetContextType {
   state: PetriNetState;
-  undo: () => void;
-  reset: () => void;
+  dispatch: React.Dispatch<PetriNetAction>;
   addPlace: (id: string) => void;
   addTransition: (id: string) => void;
   connectNodes: (source: string, target: string) => void;
-  applyRule: (rule: string, target: string, endNodeId?: string) => void;
+  addToken: (placeId: string) => void;
+  removeToken: (placeId: string) => void;
+  applyRule: (rule: string, targetId: string, endNodeId?: string) => void;
   applyRandomRule: () => void;
-  generateBatch: (count: number, useRandom: boolean, selectedRules: string[], ruleWeights?: RuleWeight[]) => void;
-  setTokenFlow: (start: string, end: string) => void;
+  setTokenFlow: (startPlaceId: string, endPlaceId: string) => void;
   startSimulation: () => void;
   stopSimulation: () => void;
+  undo: () => void;
+  reset: () => void;
   centerGraph: () => void;
   downloadLog: () => void;
-  generateEventLog: () => Promise<void>;
-  downloadEventLog: () => void;
-  savePetriNet: (name: string) => void;
-  loadPetriNet: (id: string) => void;
-  deletePetriNet: (id: string) => void;
-  renamePetriNet: (id: string, newName: string) => void;
-  savedNets: SavedPetriNet[];
+  generateBatch: (count: number, useRandom: boolean, selectedRules?: string[], ruleWeights?: { rule: string; weight: number }[]) => void;
+  loadStateFromLog: (logEntryId: string) => void;
 }
 
-// Create context
 const PetriNetContext = createContext<PetriNetContextType | undefined>(undefined);
 
-// Rule implementations
-const applyAbstractionRule = (graph: Graph, targetId: string): Graph => {
-  // Implementation of abstraction rule (ψA)
-  const newGraph = { ...graph };
-  
-  // Get target transition node
-  const targetNode = newGraph.nodes.find(node => node.id === targetId);
-  if (!targetNode || targetNode.type !== 'transition') return newGraph;
-  
-  // Find all output places of the target transition
-  const outputPlaces = newGraph.edges
-    .filter(e => e.source === targetId)
-    .map(e => e.target)
-    .filter(id => newGraph.nodes.find(n => n.id === id)?.type === 'place');
-  
-  // If no output places, cannot apply rule
-  if (outputPlaces.length === 0) {
-    toast.error("Target transition has no output places for abstraction");
-    return newGraph;
+export const usePetriNet = () => {
+  const context = useContext(PetriNetContext);
+  if (!context) {
+    throw new Error("usePetriNet must be used within a PetriNetProvider");
   }
-  
-  // Create new place and transition
-  const placeId = `P${newGraph.nodes.filter(n => n.type === 'place').length}`;
-  const transId = `T${newGraph.nodes.filter(n => n.type === 'transition').length}`;
-  
-  // Add new nodes
-  newGraph.nodes = [...newGraph.nodes, 
-    { id: placeId, type: 'place', tokens: 0 },
-    { id: transId, type: 'transition' }
-  ];
-  
-  // Remove direct edges from target to its outputs
-  newGraph.edges = newGraph.edges.filter(e => !(e.source === targetId && outputPlaces.includes(e.target)));
-  
-  // Add edges for the abstraction pattern:
-  // - from target transition to new place
-  // - from new place to new transition
-  // - from new transition to all original output places
-  newGraph.edges = [...newGraph.edges,
-    { source: targetId, target: placeId }, // transition -> new place
-    { source: placeId, target: transId },  // new place -> new transition
-    ...outputPlaces.map(output => ({ source: transId, target: output })) // new transition -> original outputs
-  ];
-  
-  return newGraph;
+  return context;
 };
 
-const applyLinearTransitionRule = (graph: Graph, targetId: string, endNodeId?: string): Graph => {
-  // Implementation of linear transition rule (ψT)
-  const newGraph = { ...graph };
-  
-  // Get target place node
-  const targetNode = newGraph.nodes.find(node => node.id === targetId);
-  if (!targetNode || targetNode.type !== 'place') return newGraph;
-  
-  // Create new transition
-  const transId = `T${newGraph.nodes.filter(n => n.type === 'transition').length}`;
-  
-  // Add new transition node
-  newGraph.nodes = [
-    ...newGraph.nodes, 
-    { id: transId, type: 'transition' }
-  ];
-  
-  // Connect target place to new transition
-  newGraph.edges = [
-    ...newGraph.edges, 
-    { source: targetId, target: transId }
-  ];
-  
-  // If end node is specified, connect the new transition to it
-  if (endNodeId) {
-    const endNode = newGraph.nodes.find(node => node.id === endNodeId);
-    if (endNode && endNode.type === 'place') {
-      newGraph.edges.push({ source: transId, target: endNodeId });
-    }
-  } else {
-    // Create a new output place if no end node is specified
-    const placeId = `P${newGraph.nodes.filter(n => n.type === 'place').length}`;
-    newGraph.nodes.push({ id: placeId, type: 'place', tokens: 0 });
-    newGraph.edges.push({ source: transId, target: placeId });
-  }
-  
-  return newGraph;
-};
-
-const applyLinearPlaceRule = (graph: Graph, targetId: string): Graph => {
-  // Implementation of linear place rule (ψP)
-  const newGraph = { ...graph };
-  
-  // Get target transition node
-  const targetNode = newGraph.nodes.find(node => node.id === targetId);
-  if (!targetNode || targetNode.type !== 'transition') return newGraph;
-  
-  // Create new place
-  const placeId = `P${newGraph.nodes.filter(n => n.type === 'place').length}`;
-  
-  // Add new place node
-  newGraph.nodes = [
-    ...newGraph.nodes, 
-    { id: placeId, type: 'place', tokens: 0 }
-  ];
-  
-  // Connect new place to target transition
-  newGraph.edges = [
-    ...newGraph.edges,
-    { source: placeId, target: targetId }
-  ];
-  
-  // Add an incoming transition to the new place
-  // Find existing input places to the target transition
-  const inputPlaces = newGraph.edges
-    .filter(e => e.target === targetId)
-    .map(e => e.source)
-    .filter(id => newGraph.nodes.find(n => n.id === id)?.type === 'place');
-    
-  if (inputPlaces.length > 0) {
-    // Create a connection from one of the existing input transitions
-    const firstInputPlace = inputPlaces[0];
-    // Find transitions connecting to this input place
-    const inputTransitions = newGraph.edges
-      .filter(e => e.target === firstInputPlace)
-      .map(e => e.source)
-      .filter(id => newGraph.nodes.find(n => n.id === id)?.type === 'transition');
-      
-    if (inputTransitions.length > 0) {
-      // Connect from an existing input transition to our new place
-      newGraph.edges.push({ source: inputTransitions[0], target: placeId });
-    } else {
-      // Create a new transition as input to our place
-      const transId = `T${newGraph.nodes.filter(n => n.type === 'transition').length}`;
-      newGraph.nodes.push({ id: transId, type: 'transition' });
-      
-      // Find starting place
-      const startPlace = newGraph.nodes.find(n => n.type === 'place' && 
-        !newGraph.edges.some(e => e.target === n.id));
-        
-      if (startPlace) {
-        newGraph.edges.push({ source: startPlace.id, target: transId });
-      }
-      
-      newGraph.edges.push({ source: transId, target: placeId });
-    }
-  }
-  
-  return newGraph;
-};
-
-const applyDualAbstractionRule = (graph: Graph, targetId: string, endNodeId?: string): Graph => {
-  // Implementation of dual abstraction rule (ψD)
-  const newGraph = { ...graph };
-  
-  // Get target transition node
-  const targetNode = newGraph.nodes.find(node => node.id === targetId);
-  if (!targetNode || targetNode.type !== 'transition') return newGraph;
-  
-  // Find all input places of the target transition
-  const inputPlaces = newGraph.edges
-    .filter(e => e.target === targetId)
-    .map(e => e.source)
-    .filter(id => newGraph.nodes.find(n => n.id === id)?.type === 'place');
-    
-  // If no input places, cannot apply rule
-  if (inputPlaces.length === 0) {
-    toast.error("Target transition has no input places for dual abstraction");
-    return newGraph;
-  }
-  
-  // Create new place and transition
-  const placeId = `P${newGraph.nodes.filter(n => n.type === 'place').length}`;
-  const transId = `T${newGraph.nodes.filter(n => n.type === 'transition').length}`;
-  
-  // Add new nodes
-  newGraph.nodes = [
-    ...newGraph.nodes, 
-    { id: transId, type: 'transition' },
-    { id: placeId, type: 'place', tokens: 0 }
-  ];
-  
-  // Remove direct edges from input places to target transition
-  newGraph.edges = newGraph.edges.filter(e => !(inputPlaces.includes(e.source) && e.target === targetId));
-  
-  // Add edges according to the rule:
-  // - from input places to new transition
-  // - from new transition to new place
-  // - from new place to target transition
-  
-  // Connect all input places to the new transition
-  const inputEdges = inputPlaces.map(input => ({ source: input, target: transId }));
-  
-  // Connect new transition to new place
-  const midEdge = { source: transId, target: placeId };
-  
-  // Connect new place to target or end node
-  const finalTarget = endNodeId || targetId;
-  const outputEdge = { source: placeId, target: finalTarget };
-  
-  // Add all new edges to the graph
-  newGraph.edges = [
-    ...newGraph.edges,
-    ...inputEdges,
-    midEdge,
-    outputEdge
-  ];
-  
-  return newGraph;
-};
-
-// Map rules to their implementations
-const rulesMap: Record<string, { 
-  fn: (graph: Graph, targetId: string, endNodeId?: string) => Graph, 
-  targetType: NodeType,
-  endNodeType?: NodeType 
-}> = {
-  'Abstraction ψA': { fn: applyAbstractionRule, targetType: 'transition' },
-  'Linear Transition ψT': { fn: applyLinearTransitionRule, targetType: 'place', endNodeType: 'place' },
-  'Linear Place ψP': { fn: applyLinearPlaceRule, targetType: 'transition' },
-  'Dual Abstraction ψD': { fn: applyDualAbstractionRule, targetType: 'transition', endNodeType: 'transition' },
-};
-
-// Create initial graph
-const initialGraph = (): Graph => {
-  return {
-    nodes: [
-      { id: 'P0', type: 'place', tokens: 1 },
-      { id: 'P_out', type: 'place', tokens: 0 },
-      { id: 'T0', type: 'transition' }
-    ],
-    edges: [
-      { source: 'P0', target: 'T0' },
-      { source: 'T0', target: 'P_out' }
-    ]
-  };
-};
-
-// Action types for reducer
-type ActionType =
-  | { type: 'UNDO' }
-  | { type: 'RESET' }
-  | { type: 'ADD_PLACE'; id: string }
-  | { type: 'ADD_TRANSITION'; id: string }
-  | { type: 'CONNECT_NODES'; source: string; target: string }
-  | { type: 'APPLY_RULE'; rule: string; target: string; endNodeId?: string }
-  | { type: 'APPLY_RANDOM_RULE' }
-  | { type: 'GENERATE_BATCH'; count: number; useRandom: boolean; selectedRules: string[], ruleWeights?: RuleWeight[] }
-  | { type: 'SET_TOKEN_FLOW'; start: string; end: string }
-  | { type: 'START_SIMULATION' }
-  | { type: 'STOP_SIMULATION' }
-  | { type: 'UPDATE_TOKEN_ANIMATION'; progress: number }
-  | { type: 'COMPLETE_SIMULATION' }
-  | { type: 'CENTER_GRAPH' }
-  | { type: 'SET_EVENT_LOG', paths: Path[] }
-  | { type: 'SAVE_PETRI_NET', name: string }
-  | { type: 'LOAD_PETRI_NET', id: string }
-  | { type: 'DELETE_PETRI_NET', id: string }
-  | { type: 'RENAME_PETRI_NET', id: string, newName: string };
-
-// Helper function to add to history
-const pushHistory = (state: PetriNetState): PetriNetState => {
-  return {
-    ...state,
-    history: [...state.history, { graph: state.graph, log: state.log }]
-  };
-};
-
-// Helper function to add log entry
-const addLogEntry = (state: PetriNetState, action: string): PetriNetState => {
-  const newEntry = {
-    id: state.log.length + 1,
-    timestamp: new Date().toISOString(),
-    action
-  };
-  
-  return {
-    ...state,
-    log: [...state.log, newEntry]
-  };
-};
-
-// Storage keys
-const STORAGE_KEY = 'petriNetState';
-const SAVED_NETS_KEY = 'petriNetSavedNets';
-
-// Save state to localStorage
-const saveStateToStorage = (state: PetriNetState) => {
-  try {
-    // Don't save simulation active state or animating tokens
-    const stateToSave = {
-      ...state,
-      simulationActive: false,
-      animatingTokens: []
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
-  } catch (error) {
-    console.error('Failed to save state to localStorage:', error);
-  }
-};
-
-// Load state from localStorage
-const loadStateFromStorage = (): PetriNetState | undefined => {
-  try {
-    const savedState = localStorage.getItem(STORAGE_KEY);
-    if (savedState) {
-      return JSON.parse(savedState) as PetriNetState;
-    }
-  } catch (error) {
-    console.error('Failed to load state from localStorage:', error);
-  }
-  return undefined;
-};
-
-// Save saved nets to localStorage
-const saveSavedNetsToStorage = (savedNets: SavedPetriNet[]) => {
-  try {
-    localStorage.setItem(SAVED_NETS_KEY, JSON.stringify(savedNets));
-  } catch (error) {
-    console.error('Failed to save nets to localStorage:', error);
-  }
-};
-
-// Load saved nets from localStorage
-const loadSavedNetsFromStorage = (): SavedPetriNet[] => {
-  try {
-    const savedNets = localStorage.getItem(SAVED_NETS_KEY);
-    if (savedNets) {
-      return JSON.parse(savedNets) as SavedPetriNet[];
-    }
-  } catch (error) {
-    console.error('Failed to load saved nets from localStorage:', error);
-  }
-  return [];
-};
-
-// Generate a unique ID
-const generateId = () => {
-  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-};
-
-// Helper function for weighted random selection
-const getWeightedRandomRule = (selectedRules: string[], ruleWeights?: RuleWeight[]): string => {
-  // If no weights are provided, select randomly
-  if (!ruleWeights || ruleWeights.length === 0) {
-    return selectedRules[Math.floor(Math.random() * selectedRules.length)];
-  }
-  
-  // Calculate total assigned weight and find which rules have weights
-  const weightedRules: { [key: string]: number } = {};
-  let totalAssignedWeight = 0;
-  
-  // First, collect all assigned weights
-  for (const ruleWeight of ruleWeights) {
-    if (selectedRules.includes(ruleWeight.rule)) {
-      weightedRules[ruleWeight.rule] = ruleWeight.weight;
-      totalAssignedWeight += ruleWeight.weight;
-    }
-  }
-  
-  // Find unweighted rules
-  const unweightedRules = selectedRules.filter(rule => !Object.keys(weightedRules).includes(rule));
-  
-  // If total assigned weight exceeds 100%, normalize it to 100%
-  if (totalAssignedWeight > 100) {
-    const normalizationFactor = 100 / totalAssignedWeight;
-    Object.keys(weightedRules).forEach(rule => {
-      weightedRules[rule] *= normalizationFactor;
-    });
-    totalAssignedWeight = 100;
-  }
-  
-  // Distribute remaining weight among unweighted rules
-  const remainingWeight = 100 - totalAssignedWeight;
-  if (unweightedRules.length > 0) {
-    const weightPerUnweighted = remainingWeight / unweightedRules.length;
-    unweightedRules.forEach(rule => {
-      weightedRules[rule] = weightPerUnweighted;
-    });
-  }
-  
-  // Build weight ranges for selection
-  const weightRanges: { rule: string; min: number; max: number }[] = [];
-  let currentWeightMin = 0;
-  
-  Object.entries(weightedRules).forEach(([rule, weight]) => {
-    const min = currentWeightMin;
-    const max = currentWeightMin + weight;
-    weightRanges.push({ rule, min, max });
-    currentWeightMin = max;
-  });
-  
-  // Select a random value between 0 and 100
-  const randomValue = Math.random() * 100;
-  
-  // Find which range the random value falls into
-  for (const range of weightRanges) {
-    if (randomValue >= range.min && randomValue < range.max) {
-      return range.rule;
-    }
-  }
-  
-  // Fallback (should not happen if weights are properly calculated)
-  return selectedRules[0];
-};
-
-// Reducer function
-const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetState => {
-  let newState: PetriNetState;
-  
-  switch (action.type) {
-    case 'UNDO':
-      if (state.history.length === 0) return state;
-      const previousState = state.history[state.history.length - 1];
-      return {
-        ...state,
-        graph: previousState.graph,
-        log: previousState.log,
-        history: state.history.slice(0, -1)
-      };
-      
-    case 'RESET':
-      newState = {
-        ...pushHistory(state),
-        graph: initialGraph(),
-        log: [],
-        currentNetId: null,
-      };
-      saveStateToStorage(newState);
-      return newState;
-      
-    case 'ADD_PLACE': {
-      // Check if place already exists
-      if (state.graph.nodes.some(n => n.id === action.id)) {
-        toast.error(`Place ${action.id} already exists`);
-        return state;
-      }
-      
-      let newState = pushHistory(state);
-      const newGraph = {
-        ...newState.graph,
-        nodes: [
-          ...newState.graph.nodes,
-          {
-            id: action.id,
-            type: "place" as NodeType, // type-safe assignment
-            tokens: 0,
-          }
-        ]
-      };
-      
-      newState = addLogEntry({
-        ...newState,
-        graph: newGraph
-      }, `Added place ${action.id}`);
-      
-      saveStateToStorage(newState);
-      return newState;
-    }
-      
-    case 'ADD_TRANSITION': {
-      // Check if transition already exists
-      if (state.graph.nodes.some(n => n.id === action.id)) {
-        toast.error(`Transition ${action.id} already exists`);
-        return state;
-      }
-      
-      let newState = pushHistory(state);
-      const newGraph = {
-        ...newState.graph,
-        nodes: [
-          ...newState.graph.nodes,
-          {
-            id: action.id,
-            type: "transition" as NodeType // type-safe assignment
-          }
-        ]
-      };
-      
-      newState = addLogEntry({
-        ...newState,
-        graph: newGraph
-      }, `Added transition ${action.id}`);
-      
-      saveStateToStorage(newState);
-      return newState;
-    }
-      
-    case 'CONNECT_NODES': {
-      // Check if edge already exists
-      if (state.graph.edges.some(e => e.source === action.source && e.target === action.target)) {
-        toast.error(`Edge from ${action.source} to ${action.target} already exists`);
-        return state;
-      }
-      
-      // Check if source and target are the same
-      if (action.source === action.target) {
-        toast.error("Cannot connect a node to itself");
-        return state;
-      }
-      
-      let newState = pushHistory(state);
-      const newGraph = {
-        ...newState.graph,
-        edges: [...newState.graph.edges, { source: action.source, target: action.target }]
-      };
-      
-      newState = addLogEntry({
-        ...newState,
-        graph: newGraph
-      }, `Connected ${action.source}->${action.target}`);
-      
-      saveStateToStorage(newState);
-      return newState;
-    }
-      
-    case 'APPLY_RULE': {
-      const { rule, target, endNodeId } = action;
-      const ruleInfo = rulesMap[rule];
-      
-      if (!ruleInfo) {
-        toast.error(`Unknown rule: ${rule}`);
-        return state;
-      }
-      
-      // Check if target exists and has the correct type
-      const targetNode = state.graph.nodes.find(n => n.id === target);
-      if (!targetNode) {
-        toast.error(`Target node ${target} not found`);
-        return state;
-      }
-      
-      if (targetNode.type !== ruleInfo.targetType) {
-        toast.error(`Rule ${rule} requires a ${ruleInfo.targetType} target, but ${target} is a ${targetNode.type}`);
-        return state;
-      }
-      
-      // Check end node if specified and if the rule supports it
-      if (endNodeId && ruleInfo.endNodeType) {
-        const endNode = state.graph.nodes.find(n => n.id === endNodeId);
-        if (!endNode) {
-          toast.error(`End node ${endNodeId} not found`);
-          return state;
-        }
-        
-        if (endNode.type !== ruleInfo.endNodeType) {
-          toast.error(`Rule ${rule} requires a ${ruleInfo.endNodeType} end node, but ${endNodeId} is a ${endNode.type}`);
-          return state;
-        }
-      }
-      
-      let newState = pushHistory(state);
-      const newGraph = ruleInfo.fn(newState.graph, target, endNodeId);
-      
-      newState = addLogEntry({
-        ...newState,
-        graph: newGraph
-      }, `Applied ${rule} on ${target}${endNodeId ? ` to ${endNodeId}` : ''}`);
-      
-      saveStateToStorage(newState);
-      return newState;
-    }
-    
-    case 'APPLY_RANDOM_RULE': {
-      // Select a random rule
-      const ruleNames = Object.keys(rulesMap);
-      const randomRule = ruleNames[Math.floor(Math.random() * ruleNames.length)];
-      const ruleInfo = rulesMap[randomRule];
-      
-      // Find valid targets for this rule
-      const validTargets = state.graph.nodes.filter(n => n.type === ruleInfo.targetType);
-      
-      if (validTargets.length === 0) {
-        toast.error(`No valid targets for rule ${randomRule}`);
-        return state;
-      }
-      
-      // Select a random target
-      const randomTarget = validTargets[Math.floor(Math.random() * validTargets.length)];
-      
-      let newState = pushHistory(state);
-      const newGraph = ruleInfo.fn(newState.graph, randomTarget.id);
-      
-      newState = addLogEntry({
-        ...newState,
-        graph: newGraph
-      }, `Random ${randomRule} on ${randomTarget.id}`);
-      
-      saveStateToStorage(newState);
-      return newState;
-    }
-      
-    case 'GENERATE_BATCH': {
-      const { count, useRandom, selectedRules, ruleWeights } = action;
-      let newState = pushHistory(state);
-      let newGraph = { ...newState.graph };
-      
-      for (let i = 0; i < count; i++) {
-        if (useRandom) {
-          // Apply random rule
-          const ruleNames = Object.keys(rulesMap);
-          const randomRule = ruleNames[Math.floor(Math.random() * ruleNames.length)];
-          const ruleInfo = rulesMap[randomRule];
-          
-          // Find valid targets
-          const validTargets = newGraph.nodes.filter(n => n.type === ruleInfo.targetType);
-          
-          if (validTargets.length > 0) {
-            const randomTarget = validTargets[Math.floor(Math.random() * validTargets.length)];
-            newGraph = ruleInfo.fn(newGraph, randomTarget.id);
-            newState = addLogEntry(newState, `Batch random ${randomRule} on ${randomTarget.id}`);
-          }
-        } else if (selectedRules.length > 0) {
-          // Apply selected rules with weights
-          const selectedRule = getWeightedRandomRule(selectedRules, ruleWeights);
-          const ruleInfo = rulesMap[selectedRule];
-          
-          if (ruleInfo) {
-            const validTargets = newGraph.nodes.filter(n => n.type === ruleInfo.targetType);
-            
-            if (validTargets.length > 0) {
-              const randomTarget = validTargets[Math.floor(Math.random() * validTargets.length)];
-              newGraph = ruleInfo.fn(newGraph, randomTarget.id);
-              newState = addLogEntry(newState, `Batch ${selectedRule} on ${randomTarget.id}`);
-            }
-          }
-        }
-      }
-      
-      newState = {
-        ...newState,
-        graph: newGraph
-      };
-      
-      saveStateToStorage(newState);
-      return newState;
-    }
-      
-    case 'SET_TOKEN_FLOW': {
-      const { start, end } = action;
-      
-      // Validate start and end nodes
-      const startNode = state.graph.nodes.find(n => n.type === 'place' && n.tokens && n.tokens > 0);
-      if (!startNode) {
-        toast.error("No start node with tokens found");
-        return state;
-      }
-      
-      const endNode = state.graph.nodes.find(n => n.id === end);
-      if (!endNode || endNode.type !== 'place') {
-        toast.error(`End node ${end} is not a valid place`);
-        return state;
-      }
-      
-      let newState = pushHistory(state);
-      const newGraph = {
-        ...newState.graph,
-        nodes: newState.graph.nodes.map(node => {
-          if (node.type === 'place') {
-            return { ...node, tokens: node.id === start ? 1 : 0 };
-          }
-          return node;
-        })
-      };
-      
-      newState = addLogEntry({
-        ...newState,
-        graph: newGraph
-      }, `Flow start=${start},end=${end}`);
-      
-      saveStateToStorage(newState);
-      return newState;
-    }
-      
-    case 'START_SIMULATION': {
-      // Find start node with tokens
-      const startNode = state.graph.nodes.find(n => n.type === 'place' && n.tokens && n.tokens > 0);
-      if (!startNode) {
-        toast.error("No start node with tokens found");
-        return state;
-      }
-      
-      // Find path through the graph
-      const outgoingEdges = state.graph.edges.filter(e => e.source === startNode.id);
-      if (outgoingEdges.length === 0) {
-        toast.error(`Start node ${startNode.id} has no outgoing edges`);
-        return state;
-      }
-      
-      const transition = outgoingEdges[0].target;
-      const outgoingFromTransition = state.graph.edges.filter(e => e.source === transition);
-      
-      if (outgoingFromTransition.length === 0) {
-        toast.error(`Transition ${transition} has no outgoing edges`);
-        return state;
-      }
-      
-      const targetPlace = outgoingFromTransition[0].target;
-      
-      return {
-        ...state,
-        simulationActive: true,
-        animatingTokens: [
-          { sourceId: startNode.id, targetId: targetPlace, progress: 0 }
-        ]
-      };
-    }
-      
-    case 'STOP_SIMULATION': {
-      // Instantly clear animation and highlight, reset simulation mode
-      return {
-        ...state,
-        simulationActive: false,
-        animatingTokens: []
-      };
-    }
-      
-    case 'UPDATE_TOKEN_ANIMATION': {
-      return {
-        ...state,
-        animatingTokens: state.animatingTokens.map(token => ({
-          ...token,
-          progress: action.progress
-        }))
-      };
-    }
-      
-    case 'COMPLETE_SIMULATION': {
-      // Update token positions after animation
-      const newGraph = { ...state.graph };
-      
-      state.animatingTokens.forEach(anim => {
-        newGraph.nodes = newGraph.nodes.map(node => {
-          if (node.id === anim.sourceId) {
-            return { ...node, tokens: 0 };
-          }
-          if (node.id === anim.targetId) {
-            return { ...node, tokens: (node.tokens || 0) + 1 };
-          }
-          return node;
-        });
-      });
-      
-      newState = addLogEntry({
-        ...state,
-        graph: newGraph,
-        simulationActive: false,
-        animatingTokens: []
-      }, `Simulation completed`);
-      
-      saveStateToStorage(newState);
-      return newState;
-    }
-    
-    case 'CENTER_GRAPH': {
-      // Dispatch custom event to center the graph
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new Event('petrinetCenterGraph'));
-      }
-      return state;
-    }
-    
-    case 'SET_EVENT_LOG': {
-      newState = {
-        ...state,
-        eventLog: {
-          paths: action.paths
-        }
-      };
-      
-      saveStateToStorage(newState);
-      return newState;
-    }
-    
-    case 'SAVE_PETRI_NET': {
-      const id = generateId();
-      const newSavedNet: SavedPetriNet = {
-        id,
-        name: action.name,
-        timestamp: Date.now(),
-        graph: state.graph,
-        log: state.log,
-        eventLog: state.eventLog
-      };
-      
-      const updatedSavedNets = [...state.savedNets, newSavedNet];
-      
-      newState = {
-        ...state,
-        savedNets: updatedSavedNets,
-        currentNetId: id
-      };
-      
-      saveSavedNetsToStorage(updatedSavedNets);
-      saveStateToStorage(newState);
-      return newState;
-    }
-    
-    case 'LOAD_PETRI_NET': {
-      const netToLoad = state.savedNets.find(net => net.id === action.id);
-      if (!netToLoad) {
-        toast.error("Could not find the requested Petri net");
-        return state;
-      }
-      
-      newState = {
-        ...state,
-        graph: netToLoad.graph,
-        log: netToLoad.log,
-        eventLog: netToLoad.eventLog,
-        history: [],
-        currentNetId: netToLoad.id
-      };
-      
-      saveStateToStorage(newState);
-      return newState;
-    }
-    
-    case 'DELETE_PETRI_NET': {
-      const updatedSavedNets = state.savedNets.filter(net => net.id !== action.id);
-      
-      newState = {
-        ...state,
-        savedNets: updatedSavedNets,
-        currentNetId: state.currentNetId === action.id ? null : state.currentNetId
-      };
-      
-      saveSavedNetsToStorage(updatedSavedNets);
-      saveStateToStorage(newState);
-      return newState;
-    }
-    
-    case 'RENAME_PETRI_NET': {
-      const updatedSavedNets = state.savedNets.map(net => 
-        net.id === action.id ? { ...net, name: action.newName } : net
-      );
-      
-      newState = {
-        ...state,
-        savedNets: updatedSavedNets
-      };
-      
-      saveSavedNetsToStorage(updatedSavedNets);
-      saveStateToStorage(newState);
-      return newState;
-    }
-      
-    default:
-      return state;
-  }
-};
-
-// Provider component
-export const PetriNetProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  // Load the saved nets first
-  const initialSavedNets = loadSavedNetsFromStorage();
-  
-  // Try to load the initial state from localStorage or use the default initial state
-  const savedState = loadStateFromStorage();
-  const initialState: PetriNetState = savedState || {
-    graph: initialGraph(),
-    log: [],
-    history: [],
-    simulationActive: false,
-    animatingTokens: [],
-    eventLog: { paths: [] },
-    savedNets: initialSavedNets,
-    currentNetId: null
-  };
-
-  // Ensure savedNets are loaded even if the main state was loaded
-  if (savedState && !savedState.savedNets) {
-    initialState.savedNets = initialSavedNets;
-  }
-
+export const PetriNetProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(petriNetReducer, initialState);
   
-  // Animation effect for token movement
+  // Load saved nets from localStorage on initial render
   useEffect(() => {
-    if (state.simulationActive && state.animatingTokens.length > 0) {
-      let animationFrame: number;
-      let startTime: number | null = null;
-      const animationDuration = 2000; // 2 seconds for animation
-      
-      const animate = (timestamp: number) => {
-        if (!startTime) startTime = timestamp;
-        const elapsed = timestamp - startTime;
-        const progress = Math.min(elapsed / animationDuration, 1);
-        
-        dispatch({ type: 'UPDATE_TOKEN_ANIMATION', progress });
-        
-        if (progress < 1) {
-          animationFrame = requestAnimationFrame(animate);
-        } else {
-          dispatch({ type: 'COMPLETE_SIMULATION' });
-        }
-      };
-      
-      animationFrame = requestAnimationFrame(animate);
-      
-      return () => {
-        cancelAnimationFrame(animationFrame);
-      };
+    const savedNets = localStorage.getItem("petriNets");
+    if (savedNets) {
+      dispatch({
+        type: "LOAD_SAVED_NETS",
+        payload: JSON.parse(savedNets)
+      });
     }
+  }, []);
+  
+  // Save nets to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem("petriNets", JSON.stringify(state.savedNets));
+  }, [state.savedNets]);
+  
+  // Animation loop for token movement
+  useEffect(() => {
+    let animationFrameId: number;
+    let lastTimestamp: number;
+    
+    const animate = (timestamp: number) => {
+      if (!lastTimestamp) lastTimestamp = timestamp;
+      const deltaTime = timestamp - lastTimestamp;
+      lastTimestamp = timestamp;
+      
+      if (state.simulationActive && state.animatingTokens.length > 0) {
+        // Update token positions
+        dispatch({
+          type: "UPDATE_TOKEN_ANIMATION",
+          payload: { deltaTime }
+        });
+        
+        animationFrameId = requestAnimationFrame(animate);
+      }
+    };
+    
+    if (state.simulationActive && state.animatingTokens.length > 0) {
+      animationFrameId = requestAnimationFrame(animate);
+    }
+    
+    return () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+    };
   }, [state.simulationActive, state.animatingTokens]);
   
-  // Find all possible paths in the Petri net
-  const generateAllPaths = async (graph: Graph): Promise<Path[]> => {
-    // Find all place nodes that have no incoming edges (potential start points)
-    const startPlaces = graph.nodes.filter(node => 
-      node.type === 'place' && 
-      !graph.edges.some(edge => edge.target === node.id)
-    );
-    
-    // If no start places found, use places with tokens
-    const places = startPlaces.length > 0 
-      ? startPlaces 
-      : graph.nodes.filter(node => node.type === 'place' && (node.tokens && node.tokens > 0));
-      
-    // If still no places, use the first place
-    const startNodes = places.length > 0 
-      ? places 
-      : graph.nodes.filter(node => node.type === 'place').slice(0, 1);
-      
-    if (startNodes.length === 0) return [];
-    
-    const allPaths: Path[] = [];
-    
-    // For each start node, find all possible paths
-    for (const startNode of startNodes) {
-      const paths = findPathsFromNode(graph, startNode.id, []);
-      allPaths.push(...paths);
-    }
-    
-    return allPaths;
-  };
-  
-  // Helper function to find paths from a node
-  const findPathsFromNode = (graph: Graph, nodeId: string, visited: string[]): Path[] => {
-    // Check if we've already visited this node to prevent cycles
-    if (visited.includes(nodeId)) {
-      return [];
-    }
-    
-    const node = graph.nodes.find(n => n.id === nodeId);
-    if (!node) return [];
-    
-    const newVisited = [...visited, nodeId];
-    const outgoingEdges = graph.edges.filter(edge => edge.source === nodeId);
-    
-    // If no outgoing edges, this is a leaf node, return a path with just this node
-    if (outgoingEdges.length === 0) {
-      return [{
-        sequence: newVisited.map(id => {
-          const n = graph.nodes.find(n => n.id === id);
-          return { id, type: n?.type || 'place' };
-        })
-      }];
-    }
-    
-    const paths: Path[] = [];
-    
-    // For each outgoing edge, recursively find paths
-    for (const edge of outgoingEdges) {
-      const targetPaths = findPathsFromNode(graph, edge.target, newVisited);
-      paths.push(...targetPaths);
-    }
-    
-    return paths;
-  };
-  
-  // Context value
-  const value = {
-    state,
-    undo: () => dispatch({ type: 'UNDO' }),
-    reset: () => dispatch({ type: 'RESET' }),
-    addPlace: (id: string) => dispatch({ type: 'ADD_PLACE', id }),
-    addTransition: (id: string) => dispatch({ type: 'ADD_TRANSITION', id }),
-    connectNodes: (source: string, target: string) => 
-      dispatch({ type: 'CONNECT_NODES', source, target }),
-    applyRule: (rule: string, target: string, endNodeId?: string) => 
-      dispatch({ type: 'APPLY_RULE', rule, target, endNodeId }),
-    applyRandomRule: () => dispatch({ type: 'APPLY_RANDOM_RULE' }),
-    generateBatch: (count: number, useRandom: boolean, selectedRules: string[], ruleWeights?: RuleWeight[]) => 
-      dispatch({ type: 'GENERATE_BATCH', count, useRandom, selectedRules, ruleWeights }),
-    setTokenFlow: (start: string, end: string) => 
-      dispatch({ type: 'SET_TOKEN_FLOW', start, end }),
-    startSimulation: () => dispatch({ type: 'START_SIMULATION' }),
-    stopSimulation: () => dispatch({ type: 'STOP_SIMULATION' }),
-    centerGraph: () => dispatch({ type: 'CENTER_GRAPH' }),
-    downloadLog: () => {
-      // Create CSV from log entries
-      const headers = "ID,Timestamp,Action\n";
-      const rows = state.log.map(entry => `${entry.id},"${entry.timestamp}","${entry.action}"`).join("\n");
-      const csv = headers + rows;
-      
-      // Create and trigger download
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', 'petri_net_log.csv');
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    },
-    generateEventLog: async () => {
-      try {
-        const paths = await generateAllPaths(state.graph);
-        dispatch({ type: 'SET_EVENT_LOG', paths });
-        return Promise.resolve();
-      } catch (error) {
-        console.error("Error generating event log:", error);
-        return Promise.reject(error);
+  // Helper function to add a log entry
+  const addLogEntry = useCallback((action: string) => {
+    dispatch({
+      type: "ADD_LOG_ENTRY",
+      payload: {
+        id: uuidv4(),
+        timestamp: new Date().toISOString(),
+        action
       }
-    },
-    downloadEventLog: () => {
-      // Create CSV from event log paths
-      const headers = "Path ID,Sequence,Length,Start,End\n";
-      const rows = state.eventLog.paths.map((path, index) => {
-        const sequence = path.sequence.map(node => node.id).join(" → ");
-        const length = path.sequence.length;
-        const start = path.sequence[0]?.id || "N/A";
-        const end = path.sequence[path.sequence.length - 1]?.id || "N/A";
+    });
+  }, []);
+  
+  // Add a place to the graph
+  const addPlace = useCallback((id: string) => {
+    if (state.graph.nodes.some(node => node.id === id)) {
+      console.error(`Place with ID ${id} already exists`);
+      return;
+    }
+    
+    dispatch({
+      type: "ADD_NODE",
+      payload: {
+        id,
+        type: "place",
+        tokens: 0
+      }
+    });
+    
+    addLogEntry(`Added place: ${id}`);
+  }, [state.graph.nodes, addLogEntry]);
+  
+  // Add a transition to the graph
+  const addTransition = useCallback((id: string) => {
+    if (state.graph.nodes.some(node => node.id === id)) {
+      console.error(`Transition with ID ${id} already exists`);
+      return;
+    }
+    
+    dispatch({
+      type: "ADD_NODE",
+      payload: {
+        id,
+        type: "transition"
+      }
+    });
+    
+    addLogEntry(`Added transition: ${id}`);
+  }, [state.graph.nodes, addLogEntry]);
+  
+  // Connect two nodes with an edge
+  const connectNodes = useCallback((source: string, target: string) => {
+    // Check if nodes exist
+    const sourceNode = state.graph.nodes.find(node => node.id === source);
+    const targetNode = state.graph.nodes.find(node => node.id === target);
+    
+    if (!sourceNode || !targetNode) {
+      console.error("Source or target node not found");
+      return;
+    }
+    
+    // Check if edge already exists
+    if (state.graph.edges.some(edge => edge.source === source && edge.target === target)) {
+      console.error(`Edge from ${source} to ${target} already exists`);
+      return;
+    }
+    
+    // Check if connecting same type of nodes (place-place or transition-transition)
+    if (sourceNode.type === targetNode.type) {
+      console.error(`Cannot connect ${sourceNode.type} to ${targetNode.type}`);
+      return;
+    }
+    
+    dispatch({
+      type: "ADD_EDGE",
+      payload: {
+        source,
+        target
+      }
+    });
+    
+    addLogEntry(`Connected ${source} to ${target}`);
+  }, [state.graph.nodes, state.graph.edges, addLogEntry]);
+  
+  // Add a token to a place
+  const addToken = useCallback((placeId: string) => {
+    const place = state.graph.nodes.find(node => node.id === placeId && node.type === "place");
+    
+    if (!place) {
+      console.error(`Place ${placeId} not found`);
+      return;
+    }
+    
+    dispatch({
+      type: "UPDATE_TOKENS",
+      payload: {
+        placeId,
+        tokens: (place.tokens || 0) + 1
+      }
+    });
+    
+    addLogEntry(`Added token to ${placeId}`);
+  }, [state.graph.nodes, addLogEntry]);
+  
+  // Remove a token from a place
+  const removeToken = useCallback((placeId: string) => {
+    const place = state.graph.nodes.find(node => node.id === placeId && node.type === "place");
+    
+    if (!place) {
+      console.error(`Place ${placeId} not found`);
+      return;
+    }
+    
+    if (!place.tokens || place.tokens <= 0) {
+      console.error(`Place ${placeId} has no tokens to remove`);
+      return;
+    }
+    
+    dispatch({
+      type: "UPDATE_TOKENS",
+      payload: {
+        placeId,
+        tokens: place.tokens - 1
+      }
+    });
+    
+    addLogEntry(`Removed token from ${placeId}`);
+  }, [state.graph.nodes, addLogEntry]);
+  
+  // Apply a rule to the graph
+  const applyRule = useCallback((rule: string, targetId: string, endNodeId?: string) => {
+    const targetNode = state.graph.nodes.find(node => node.id === targetId);
+    
+    if (!targetNode) {
+      console.error(`Target node ${targetId} not found`);
+      return;
+    }
+    
+    // Check if endNode exists when provided
+    if (endNodeId) {
+      const endNode = state.graph.nodes.find(node => node.id === endNodeId);
+      if (!endNode) {
+        console.error(`End node ${endNodeId} not found`);
+        return;
+      }
+    }
+    
+    let newNodes: Node[] = [];
+    let newEdges: Edge[] = [];
+    
+    // Apply the selected rule
+    switch (rule) {
+      case "Abstraction ψA": {
+        // Abstraction rule applies to transitions
+        if (targetNode.type !== "transition") {
+          console.error("Abstraction rule can only be applied to transitions");
+          return;
+        }
         
-        return `${index + 1},"${sequence}",${length},"${start}","${end}"`;
-      }).join("\n");
+        // Find incoming and outgoing edges
+        const incomingEdges = state.graph.edges.filter(edge => edge.target === targetId);
+        const outgoingEdges = state.graph.edges.filter(edge => edge.source === targetId);
+        
+        // Create new place
+        const newPlaceId = `p${state.graph.nodes.length + 1}`;
+        newNodes.push({
+          id: newPlaceId,
+          type: "place",
+          tokens: 0
+        });
+        
+        // Connect incoming places to new place
+        incomingEdges.forEach(edge => {
+          newEdges.push({
+            source: edge.source,
+            target: newPlaceId
+          });
+        });
+        
+        // Connect new place to outgoing places
+        outgoingEdges.forEach(edge => {
+          newEdges.push({
+            source: newPlaceId,
+            target: edge.target
+          });
+        });
+        
+        break;
+      }
       
-      const csv = headers + rows;
+      case "Linear Transition ψT": {
+        // Linear Transition rule applies to places
+        if (targetNode.type !== "place") {
+          console.error("Linear Transition rule can only be applied to places");
+          return;
+        }
+        
+        // Find outgoing edges
+        const outgoingEdges = state.graph.edges.filter(edge => edge.source === targetId);
+        
+        if (outgoingEdges.length === 0) {
+          console.error("Place must have at least one outgoing transition");
+          return;
+        }
+        
+        // Create new transition and place
+        const newTransitionId = `t${state.graph.nodes.length + 1}`;
+        const newPlaceId = endNodeId || `p${state.graph.nodes.length + 2}`;
+        
+        // If endNodeId is provided, check if it's a place
+        if (endNodeId) {
+          const endNode = state.graph.nodes.find(node => node.id === endNodeId);
+          if (endNode?.type !== "place") {
+            console.error("End node must be a place for Linear Transition rule");
+            return;
+          }
+        } else {
+          // Only add new place if we're not using an existing end node
+          newNodes.push({
+            id: newPlaceId,
+            type: "place",
+            tokens: 0
+          });
+        }
+        
+        // Add new transition
+        newNodes.push({
+          id: newTransitionId,
+          type: "transition"
+        });
+        
+        // Connect source place to new transition
+        newEdges.push({
+          source: targetId,
+          target: newTransitionId
+        });
+        
+        // Connect new transition to new place
+        newEdges.push({
+          source: newTransitionId,
+          target: newPlaceId
+        });
+        
+        break;
+      }
       
-      // Create and trigger download
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', 'petri_net_event_log.csv');
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    },
-    savePetriNet: (name: string) => dispatch({ type: 'SAVE_PETRI_NET', name }),
-    loadPetriNet: (id: string) => dispatch({ type: 'LOAD_PETRI_NET', id }),
-    deletePetriNet: (id: string) => dispatch({ type: 'DELETE_PETRI_NET', id }),
-    renamePetriNet: (id: string, newName: string) => 
-      dispatch({ type: 'RENAME_PETRI_NET', id, newName }),
-    savedNets: state.savedNets
+      case "Linear Place ψP": {
+        // Linear Place rule applies to transitions
+        if (targetNode.type !== "transition") {
+          console.error("Linear Place rule can only be applied to transitions");
+          return;
+        }
+        
+        // Find incoming edges
+        const incomingEdges = state.graph.edges.filter(edge => edge.target === targetId);
+        
+        if (incomingEdges.length === 0) {
+          console.error("Transition must have at least one incoming place");
+          return;
+        }
+        
+        // Create new place and transition
+        const newPlaceId = `p${state.graph.nodes.length + 1}`;
+        const newTransitionId = `t${state.graph.nodes.length + 2}`;
+        
+        newNodes.push({
+          id: newPlaceId,
+          type: "place",
+          tokens: 0
+        });
+        
+        newNodes.push({
+          id: newTransitionId,
+          type: "transition"
+        });
+        
+        // Connect new place to new transition
+        newEdges.push({
+          source: newPlaceId,
+          target: newTransitionId
+        });
+        
+        // Connect new transition to target transition's outgoing places
+        const outgoingEdges = state.graph.edges.filter(edge => edge.source === targetId);
+        outgoingEdges.forEach(edge => {
+          newEdges.push({
+            source: newTransitionId,
+            target: edge.target
+          });
+        });
+        
+        break;
+      }
+      
+      case "Dual Abstraction ψD": {
+        // Dual Abstraction rule applies to transitions
+        if (targetNode.type !== "transition") {
+          console.error("Dual Abstraction rule can only be applied to transitions");
+          return;
+        }
+        
+        // Find incoming and outgoing edges
+        const incomingEdges = state.graph.edges.filter(edge => edge.target === targetId);
+        const outgoingEdges = state.graph.edges.filter(edge => edge.source === targetId);
+        
+        if (incomingEdges.length === 0 || outgoingEdges.length === 0) {
+          console.error("Transition must have at least one incoming and one outgoing edge");
+          return;
+        }
+        
+        // Create new transition or use provided end node
+        const newTransitionId = endNodeId || `t${state.graph.nodes.length + 1}`;
+        
+        // If endNodeId is provided, check if it's a transition
+        if (endNodeId) {
+          const endNode = state.graph.nodes.find(node => node.id === endNodeId);
+          if (endNode?.type !== "transition") {
+            console.error("End node must be a transition for Dual Abstraction rule");
+            return;
+          }
+        } else {
+          // Only add new transition if we're not using an existing end node
+          newNodes.push({
+            id: newTransitionId,
+            type: "transition"
+          });
+        }
+        
+        // Connect incoming places to new transition
+        incomingEdges.forEach(edge => {
+          newEdges.push({
+            source: edge.source,
+            target: newTransitionId
+          });
+        });
+        
+        // Connect target transition to outgoing places
+        outgoingEdges.forEach(edge => {
+          if (!endNodeId) {
+            // Only add these edges if we're not using an existing end node
+            newEdges.push({
+              source: newTransitionId,
+              target: edge.target
+            });
+          }
+        });
+        
+        break;
+      }
+      
+      default:
+        console.error(`Unknown rule: ${rule}`);
+        return;
+    }
+    
+    dispatch({
+      type: "APPLY_RULE",
+      payload: {
+        newNodes,
+        newEdges
+      }
+    });
+    
+    addLogEntry(`Applied ${rule} to ${targetId}${endNodeId ? ` with end node ${endNodeId}` : ''}`);
+  }, [state.graph.nodes, state.graph.edges, addLogEntry]);
+  
+  // Apply a random rule to the graph
+  const applyRandomRule = useCallback(() => {
+    const rules = ["Abstraction ψA", "Linear Transition ψT", "Linear Place ψP", "Dual Abstraction ψD"];
+    const randomRule = rules[Math.floor(Math.random() * rules.length)];
+    
+    // Find valid targets for the selected rule
+    let validTargets: Node[] = [];
+    
+    switch (randomRule) {
+      case "Abstraction ψA":
+      case "Linear Place ψP":
+      case "Dual Abstraction ψD":
+        validTargets = state.graph.nodes.filter(node => node.type === "transition");
+        break;
+      case "Linear Transition ψT":
+        validTargets = state.graph.nodes.filter(node => node.type === "place");
+        break;
+    }
+    
+    if (validTargets.length === 0) {
+      console.error(`No valid targets for ${randomRule}`);
+      return;
+    }
+    
+    const randomTarget = validTargets[Math.floor(Math.random() * validTargets.length)];
+    applyRule(randomRule, randomTarget.id);
+  }, [state.graph.nodes, applyRule]);
+  
+  // Set token flow from start place to end place
+  const setTokenFlow = useCallback((startPlaceId: string, endPlaceId: string) => {
+    const startPlace = state.graph.nodes.find(node => node.id === startPlaceId && node.type === "place");
+    const endPlace = state.graph.nodes.find(node => node.id === endPlaceId && node.type === "place");
+    
+    if (!startPlace || !endPlace) {
+      console.error("Start or end place not found");
+      return;
+    }
+    
+    dispatch({
+      type: "SET_TOKEN_FLOW",
+      payload: {
+        startPlaceId,
+        endPlaceId
+      }
+    });
+    
+    // Add token to start place if it doesn't have any
+    if (!startPlace.tokens || startPlace.tokens === 0) {
+      dispatch({
+        type: "UPDATE_TOKENS",
+        payload: {
+          placeId: startPlaceId,
+          tokens: 1
+        }
+      });
+    }
+    
+    addLogEntry(`Set token flow from ${startPlaceId} to ${endPlaceId}`);
+  }, [state.graph.nodes, addLogEntry]);
+  
+  // Start simulation
+  const startSimulation = useCallback(() => {
+    if (state.simulationActive) {
+      return; // Already running
+    }
+    
+    dispatch({ type: "START_SIMULATION" });
+    addLogEntry("Started simulation");
+  }, [state.simulationActive, addLogEntry]);
+  
+  // Stop simulation
+  const stopSimulation = useCallback(() => {
+    if (!state.simulationActive) {
+      return; // Already stopped
+    }
+    
+    dispatch({ type: "STOP_SIMULATION" });
+    addLogEntry("Stopped simulation");
+  }, [state.simulationActive, addLogEntry]);
+  
+  // Undo last action
+  const undo = useCallback(() => {
+    if (state.history.length <= 1) {
+      console.error("Nothing to undo");
+      return;
+    }
+    
+    dispatch({ type: "UNDO" });
+    addLogEntry("Undid last action");
+  }, [state.history.length, addLogEntry]);
+  
+  // Reset to initial state
+  const reset = useCallback(() => {
+    dispatch({ type: "RESET" });
+    addLogEntry("Reset to initial state");
+  }, [addLogEntry]);
+  
+  // Center the graph
+  const centerGraph = useCallback(() => {
+    // Dispatch a custom event that the graph component will listen for
+    window.dispatchEvent(new CustomEvent("petrinetCenterGraph"));
+  }, []);
+  
+  // Download log as CSV
+  const downloadLog = useCallback(() => {
+    if (state.log.length === 0) {
+      console.error("No log entries to download");
+      return;
+    }
+    
+    // Create CSV content
+    const headers = ["ID", "Timestamp", "Action"];
+    const rows = state.log.map(entry => [
+      entry.id,
+      new Date(entry.timestamp).toLocaleString(),
+      entry.action
+    ]);
+    
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(row => row.join(","))
+    ].join("\n");
+    
+    // Create download link
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `petri-net-log-${new Date().toISOString().slice(0, 10)}.csv`);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }, [state.log]);
+  
+  // Generate a batch of rules
+  const generateBatch = useCallback((
+    count: number, 
+    useRandom: boolean, 
+    selectedRules?: string[], 
+    ruleWeights?: { rule: string; weight: number }[]
+  ) => {
+    if (count <= 0) {
+      console.error("Count must be positive");
+      return;
+    }
+    
+    // Apply rules one by one
+    for (let i = 0; i < count; i++) {
+      if (useRandom) {
+        applyRandomRule();
+      } else if (selectedRules && selectedRules.length > 0) {
+        // Select a rule based on weights if provided
+        let rule: string;
+        
+        if (ruleWeights && ruleWeights.length > 0) {
+          // Calculate total weight
+          const totalWeight = ruleWeights.reduce((sum, rw) => sum + rw.weight, 0);
+          
+          // Normalize weights if total exceeds 100
+          const normalizer = totalWeight > 100 ? 100 / totalWeight : 1;
+          
+          // Create a map of rules to normalized weights
+          const weightMap = new Map<string, number>();
+          ruleWeights.forEach(rw => {
+            weightMap.set(rw.rule, rw.weight * normalizer);
+          });
+          
+          // Distribute remaining weight to unweighted rules
+          const weightedRules = new Set(ruleWeights.map(rw => rw.rule));
+          const unweightedRules = selectedRules.filter(r => !weightedRules.has(r));
+          
+          if (unweightedRules.length > 0) {
+            const remainingWeight = Math.max(0, 100 - (totalWeight * normalizer));
+            const weightPerRule = remainingWeight / unweightedRules.length;
+            unweightedRules.forEach(r => {
+              weightMap.set(r, weightPerRule);
+            });
+          }
+          
+          // Select a rule based on weights
+          const random = Math.random() * 100;
+          let cumulativeWeight = 0;
+          
+          for (const [r, weight] of weightMap.entries()) {
+            cumulativeWeight += weight;
+            if (random <= cumulativeWeight) {
+              rule = r;
+              break;
+            }
+          }
+          
+          // Fallback to random selection if weights don't add up
+          if (!rule) {
+            rule = selectedRules[Math.floor(Math.random() * selectedRules.length)];
+          }
+        } else {
+          // Simple random selection without weights
+          rule = selectedRules[Math.floor(Math.random() * selectedRules.length)];
+        }
+        
+        // Find valid targets for the selected rule
+        let validTargets: Node[] = [];
+        
+        switch (rule) {
+          case "Abstraction ψA":
+          case "Linear Place ψP":
+          case "Dual Abstraction ψD":
+            validTargets = state.graph.nodes.filter(node => node.type === "transition");
+            break;
+          case "Linear Transition ψT":
+            validTargets = state.graph.nodes.filter(node => node.type === "place");
+            break;
+        }
+        
+        if (validTargets.length === 0) {
+          console.error(`No valid targets for ${rule}`);
+          continue;
+        }
+        
+        const randomTarget = validTargets[Math.floor(Math.random() * validTargets.length)];
+        applyRule(rule, randomTarget.id);
+      }
+    }
+    
+    addLogEntry(`Generated batch of ${count} rules`);
+  }, [applyRandomRule, applyRule, addLogEntry]);
+
+  // Load state from log entry
+  const loadStateFromLog = (logEntryId: string) => {
+    // Find the index of the log entry
+    const logIndex = state.log.findIndex(entry => entry.id === logEntryId);
+    
+    if (logIndex >= 0) {
+      // Get the corresponding history state (which is one less than log entry index
+      // because first log entry happens after the first history state)
+      const historyIndex = Math.min(logIndex, state.history.length - 1);
+      
+      if (historyIndex >= 0 && historyIndex < state.history.length) {
+        // Load the historical state
+        const historicalState = state.history[historyIndex];
+        
+        // Update the current graph to match the historical state
+        // but keep the rest of the current state intact
+        dispatch({
+          type: 'LOAD_HISTORICAL_STATE',
+          payload: {
+            graph: historicalState.graph,
+            historyIndex
+          }
+        });
+        
+        // Add a log entry for this action
+        addLogEntry(`Loaded state from action: ${state.log[logIndex].action}`);
+        
+        // Stop any ongoing simulation
+        if (state.simulationActive) {
+          stopSimulation();
+        }
+      }
+    }
   };
   
   return (
-    <PetriNetContext.Provider value={value}>
+    <PetriNetContext.Provider
+      value={{
+        state,
+        dispatch,
+        addPlace,
+        addTransition,
+        connectNodes,
+        addToken,
+        removeToken,
+        applyRule,
+        applyRandomRule,
+        setTokenFlow,
+        startSimulation,
+        stopSimulation,
+        undo,
+        reset,
+        centerGraph,
+        downloadLog,
+        generateBatch,
+        loadStateFromLog
+      }}
+    >
       {children}
     </PetriNetContext.Provider>
   );
-};
-
-// Custom hook
-export const usePetriNet = () => {
-  const context = useContext(PetriNetContext);
-  if (context === undefined) {
-    throw new Error('usePetriNet must be used within a PetriNetProvider');
-  }
-  return context;
 };

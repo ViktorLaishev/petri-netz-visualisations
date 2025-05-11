@@ -4,11 +4,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { usePetriNet } from "@/contexts/PetriNetContext";
 
 const LogTable: React.FC = () => {
-  const { state } = usePetriNet();
+  const { state, loadStateFromLog } = usePetriNet();
+  
+  const handleLogEntryClick = (logEntryId: string) => {
+    loadStateFromLog(logEntryId);
+  };
   
   return (
     <div className="border rounded-md overflow-hidden">
-      <div className="max-h-[200px] overflow-y-auto">
+      <div className="max-h-[400px] overflow-y-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -26,7 +30,11 @@ const LogTable: React.FC = () => {
               </TableRow>
             ) : (
               state.log.map((entry) => (
-                <TableRow key={entry.id}>
+                <TableRow 
+                  key={entry.id} 
+                  className="cursor-pointer hover:bg-muted/60"
+                  onClick={() => handleLogEntryClick(entry.id)}
+                >
                   <TableCell className="font-medium">{entry.id}</TableCell>
                   <TableCell>{new Date(entry.timestamp).toLocaleString()}</TableCell>
                   <TableCell>{entry.action}</TableCell>
