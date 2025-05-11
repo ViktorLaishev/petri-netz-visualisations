@@ -1,8 +1,9 @@
 
 // Add this case to the reducer
-case 'LOAD_HISTORICAL_STATE':
+export const handleLoadHistoricalState = (state, action) => {
   return {
     ...state,
     graph: action.payload.graph,
     currentHistoryIndex: action.payload.historyIndex
   };
+};
