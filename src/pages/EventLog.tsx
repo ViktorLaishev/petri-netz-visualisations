@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -12,14 +12,9 @@ export default function EventLog() {
   const { state, generateEventLog, downloadEventLog } = usePetriNet();
   const [isGenerating, setIsGenerating] = useState(false);
 
-  // Generate event log on component mount if it's empty
-  useEffect(() => {
-    if (state.eventLog.paths.length === 0) {
-      handleRegenerateLog();
-    }
-  }, [state.graph]);
-
   const handleRegenerateLog = async () => {
+    if (!generateEventLog) return;
+    
     setIsGenerating(true);
     try {
       await generateEventLog();
@@ -70,17 +65,19 @@ export default function EventLog() {
                 >
                   {isGenerating ? "Generating..." : "Regenerate Log"}
                 </Button>
-                <Button 
-                  variant="outline" 
-                  className="gap-2"
-                  onClick={() => {
-                    downloadEventLog();
-                    toast.success("Event log downloaded");
-                  }}
-                >
-                  <Download className="h-4 w-4" />
-                  Download CSV
-                </Button>
+                {downloadEventLog && (
+                  <Button 
+                    variant="outline" 
+                    className="gap-2"
+                    onClick={() => {
+                      downloadEventLog();
+                      toast.success("Event log downloaded");
+                    }}
+                  >
+                    <Download className="h-4 w-4" />
+                    Download CSV
+                  </Button>
+                )}
               </div>
             </div>
           </CardHeader>

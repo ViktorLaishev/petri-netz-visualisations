@@ -1,6 +1,11 @@
 
-import { PetriNetState, PetriNetAction, Graph } from "@/types/PetriNet";
+import { PetriNetState, PetriNetAction, Graph, EventLog } from "@/types/PetriNet";
 import { v4 as uuidv4 } from "uuid";
+
+// Define initial event log
+const initialEventLog: EventLog = {
+  paths: []
+};
 
 // Define the initial state
 export const initialState: PetriNetState = {
@@ -8,7 +13,7 @@ export const initialState: PetriNetState = {
     nodes: [],
     edges: []
   },
-  history: [{ graph: { nodes: [], edges: [] } }],
+  history: [{ graph: { nodes: [], edges: [] }, timestamp: new Date().toISOString() }],
   currentHistoryIndex: 0,
   log: [],
   simulationActive: false,
@@ -17,7 +22,8 @@ export const initialState: PetriNetState = {
     startPlaceId: null,
     endPlaceId: null
   },
-  savedNets: []
+  savedNets: [],
+  eventLog: initialEventLog
 };
 
 // Helper function to create a deep copy of the graph
@@ -48,7 +54,10 @@ export const petriNetReducer = (state: PetriNetState, action: PetriNetAction): P
       
       // Add to history
       const newHistory = state.history.slice(0, state.currentHistoryIndex + 1);
-      newHistory.push({ graph: newGraph });
+      newHistory.push({ 
+        graph: newGraph,
+        timestamp: new Date().toISOString()
+      });
       
       return {
         ...state,
@@ -64,7 +73,10 @@ export const petriNetReducer = (state: PetriNetState, action: PetriNetAction): P
       
       // Add to history
       const newHistory = state.history.slice(0, state.currentHistoryIndex + 1);
-      newHistory.push({ graph: newGraph });
+      newHistory.push({ 
+        graph: newGraph,
+        timestamp: new Date().toISOString() 
+      });
       
       return {
         ...state,
@@ -89,7 +101,10 @@ export const petriNetReducer = (state: PetriNetState, action: PetriNetAction): P
       
       // Add to history
       const newHistory = state.history.slice(0, state.currentHistoryIndex + 1);
-      newHistory.push({ graph: newGraph });
+      newHistory.push({ 
+        graph: newGraph,
+        timestamp: new Date().toISOString()
+      });
       
       return {
         ...state,
@@ -114,7 +129,10 @@ export const petriNetReducer = (state: PetriNetState, action: PetriNetAction): P
       
       // Add to history
       const newHistory = state.history.slice(0, state.currentHistoryIndex + 1);
-      newHistory.push({ graph: newGraph });
+      newHistory.push({ 
+        graph: newGraph,
+        timestamp: new Date().toISOString()
+      });
       
       return {
         ...state,
@@ -151,7 +169,6 @@ export const petriNetReducer = (state: PetriNetState, action: PetriNetAction): P
     
     case "UPDATE_TOKEN_ANIMATION": {
       // Update token animation logic
-      // This would be more complex in a real implementation
       return {
         ...state,
         animatingTokens: state.animatingTokens.map(token => ({
@@ -210,12 +227,14 @@ export const petriNetReducer = (state: PetriNetState, action: PetriNetAction): P
         id: uuidv4(),
         name: action.payload.name,
         graph: deepCopyGraph(state.graph),
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        log: [...state.log]
       };
       
       return {
         ...state,
-        savedNets: [...state.savedNets, newSavedNet]
+        savedNets: [...state.savedNets, newSavedNet],
+        currentNetId: newSavedNet.id
       };
     }
     
@@ -227,20 +246,27 @@ export const petriNetReducer = (state: PetriNetState, action: PetriNetAction): P
       const newGraph = deepCopyGraph(savedNet.graph);
       
       // Add to history
-      const newHistory = [{ graph: newGraph }];
+      const newHistory = [{ 
+        graph: newGraph,
+        timestamp: new Date().toISOString()
+      }];
       
       return {
         ...state,
         graph: newGraph,
         history: newHistory,
-        currentHistoryIndex: 0
+        currentHistoryIndex: 0,
+        currentNetId: savedNet.id,
+        log: savedNet.log || []
       };
     }
     
     case "DELETE_PETRI_NET": {
+      const updatedNets = state.savedNets.filter(net => net.id !== action.payload);
       return {
         ...state,
-        savedNets: state.savedNets.filter(net => net.id !== action.payload)
+        savedNets: updatedNets,
+        currentNetId: state.currentNetId === action.payload ? undefined : state.currentNetId
       };
     }
     
@@ -252,6 +278,13 @@ export const petriNetReducer = (state: PetriNetState, action: PetriNetAction): P
             ? { ...net, name: action.payload.name } 
             : net
         )
+      };
+    }
+    
+    case "SET_EVENT_LOG": {
+      return {
+        ...state,
+        eventLog: action.payload
       };
     }
     
