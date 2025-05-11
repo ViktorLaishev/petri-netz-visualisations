@@ -539,11 +539,9 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
       const { start, end } = action;
       
       // Validate start and end nodes
-      const startNode = state.graph.nodes.find(n => n.id === start);
-      const endNode = state.graph.nodes.find(n => n.id === end);
-      
-      if (!startNode || startNode.type !== 'place') {
-        toast.error(`Start node ${start} is not a valid place`);
+      const startNode = state.graph.nodes.find(n => n.type === 'place' && n.tokens && n.tokens > 0);
+      if (!startNode) {
+        toast.error("No start node with tokens found");
         return state;
       }
       
@@ -653,7 +651,11 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
     }
     
     case 'CENTER_GRAPH': {
-      return state; // Actual centering is handled in the component
+      // Dispatch custom event to center the graph
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('petrinetCenterGraph'));
+      }
+      return state;
     }
     
     case 'SET_EVENT_LOG': {

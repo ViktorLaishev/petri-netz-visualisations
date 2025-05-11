@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState } from "react";
 import { usePetriNet } from "@/contexts/PetriNetContext";
 import cytoscape from "cytoscape";
@@ -213,6 +214,28 @@ const PetriNetGraph: React.FC = () => {
       }
     }
   }, [simulationActive, animatingTokens, graph.edges]);
+  
+  // Add effect to handle centerGraph command
+  useEffect(() => {
+    // Expose the cytoscape instance to the window for external access
+    if (cyInstanceRef.current) {
+      // Create a method to center and fit the graph
+      const centerAndFitGraph = () => {
+        if (cyInstanceRef.current) {
+          cyInstanceRef.current.fit(undefined, 50);
+          cyInstanceRef.current.center();
+        }
+      };
+      
+      // Add an event listener for the centerGraph action
+      window.addEventListener('petrinetCenterGraph', centerAndFitGraph);
+      
+      // Clean up the event listener
+      return () => {
+        window.removeEventListener('petrinetCenterGraph', centerAndFitGraph);
+      };
+    }
+  }, []);
   
   return (
     <div 
