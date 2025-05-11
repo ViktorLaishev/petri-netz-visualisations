@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -294,11 +293,12 @@ const NodeControls = () => {
   );
 };
 
-// Rule Controls Component
+// Rule Controls Component - Updated to support selecting end nodes
 const RuleControls = () => {
   const { state, applyRule, applyRandomRule } = usePetriNet();
   const [selectedRule, setSelectedRule] = useState("");
   const [targetNode, setTargetNode] = useState("");
+  const [endNode, setEndNode] = useState("");
 
   // Get valid targets based on the selected rule
   const getTargetOptions = () => {
@@ -321,14 +321,50 @@ const RuleControls = () => {
       }));
   };
 
+  // Get valid end nodes based on the selected rule
+  const getEndNodeOptions = () => {
+    if (!selectedRule) return [];
+    
+    // Only Linear Transition and Dual Abstraction rules support end nodes
+    if (selectedRule === "Linear Transition ψT") {
+      return state.graph.nodes
+        .filter(node => node.type === 'place')
+        .map(node => ({
+          label: node.id,
+          value: node.id
+        }));
+    } else if (selectedRule === "Dual Abstraction ψD") {
+      return state.graph.nodes
+        .filter(node => node.type === 'transition')
+        .map(node => ({
+          label: node.id,
+          value: node.id
+        }));
+    }
+    
+    return [];
+  };
+
+  // Check if the selected rule supports end nodes
+  const supportsEndNode = () => {
+    return selectedRule === "Linear Transition ψT" || selectedRule === "Dual Abstraction ψD";
+  };
+
   const handleApplyRule = () => {
     if (selectedRule && targetNode) {
-      applyRule(selectedRule, targetNode);
-      toast.success(`Applied ${selectedRule} on ${targetNode}`);
+      // Only include endNode if the rule supports it and an end node is selected
+      const endNodeToUse = supportsEndNode() && endNode ? endNode : undefined;
+      applyRule(selectedRule, targetNode, endNodeToUse);
+      toast.success(`Applied ${selectedRule} on ${targetNode}${endNodeToUse ? ` to ${endNodeToUse}` : ''}`);
     } else {
       toast.error("Please select both a rule and a target");
     }
   };
+
+  // Reset end node when rule changes
+  useEffect(() => {
+    setEndNode("");
+  }, [selectedRule]);
 
   return (
     <div className="space-y-4">
@@ -348,7 +384,7 @@ const RuleControls = () => {
       </div>
       
       <div>
-        <Label>Target Node</Label>
+        <Label>Start Node</Label>
         <Select value={targetNode} onValueChange={setTargetNode}>
           <SelectTrigger className="mt-1">
             <SelectValue placeholder="Select target" />
@@ -367,6 +403,26 @@ const RuleControls = () => {
           </SelectContent>
         </Select>
       </div>
+      
+      {/* Show end node selection only for rules that support it */}
+      {supportsEndNode() && (
+        <div>
+          <Label>End Node</Label>
+          <Select value={endNode} onValueChange={setEndNode}>
+            <SelectTrigger className="mt-1">
+              <SelectValue placeholder="Select end node (optional)" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">None (default behavior)</SelectItem>
+              {getEndNodeOptions().map(option => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
       
       <div className="pt-1 space-y-2">
         <Button 
