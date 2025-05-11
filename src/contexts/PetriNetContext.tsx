@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useReducer, useEffect, useCallback } from "react";
 import { v4 as uuidv4 } from "uuid";
-import { petriNetReducer, initialState } from "@/reducers/PetriNetReducer";
+import { petriNetReducer, initialState, handleLoadHistoricalState } from "@/reducers/PetriNetReducer";
 import { PetriNetState, PetriNetAction, Node, Edge } from "@/types/PetriNet";
 
 interface PetriNetContextType {
@@ -677,7 +677,7 @@ export const PetriNetProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     
     addLogEntry(`Generated batch of ${count} rules`);
   }, [applyRandomRule, applyRule, addLogEntry]);
-
+  
   // Load state from log entry
   const loadStateFromLog = (logEntryId: string) => {
     // Find the index of the log entry
