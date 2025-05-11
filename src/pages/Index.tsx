@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -396,7 +397,7 @@ const RuleControls = () => {
               </SelectItem>
             ))}
             {getTargetOptions().length === 0 && (
-              <SelectItem value="dummy" disabled>
+              <SelectItem value="no-valid-targets" disabled>
                 {!selectedRule ? "Select a rule first" : "No valid targets"}
               </SelectItem>
             )}
@@ -413,7 +414,7 @@ const RuleControls = () => {
               <SelectValue placeholder="Select end node (optional)" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">None (default behavior)</SelectItem>
+              <SelectItem value="none">None (default behavior)</SelectItem>
               {getEndNodeOptions().map(option => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}
