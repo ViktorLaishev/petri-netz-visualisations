@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useReducer, useEffect, ReactNode } from "react";
 import { toast } from "sonner";
 
@@ -49,6 +48,12 @@ interface SavedPetriNet {
   eventLog: EventLog;
 }
 
+// Added RuleWeight interface for weighted randomization
+interface RuleWeight {
+  rule: string;
+  weight: number; // Weight as a percentage (0-100)
+}
+
 interface PetriNetState {
   graph: Graph;
   log: LogEntry[];
@@ -73,7 +78,7 @@ interface PetriNetContextType {
   connectNodes: (source: string, target: string) => void;
   applyRule: (rule: string, target: string, endNodeId?: string) => void;
   applyRandomRule: () => void;
-  generateBatch: (count: number, useRandom: boolean, selectedRules: string[]) => void;
+  generateBatch: (count: number, useRandom: boolean, selectedRules: string[], ruleWeights?: RuleWeight[]) => void;
   setTokenFlow: (start: string, end: string) => void;
   startSimulation: () => void;
   stopSimulation: () => void;
@@ -335,7 +340,7 @@ type ActionType =
   | { type: 'CONNECT_NODES'; source: string; target: string }
   | { type: 'APPLY_RULE'; rule: string; target: string; endNodeId?: string }
   | { type: 'APPLY_RANDOM_RULE' }
-  | { type: 'GENERATE_BATCH'; count: number; useRandom: boolean; selectedRules: string[] }
+  | { type: 'GENERATE_BATCH'; count: number; useRandom: boolean; selectedRules: string[], ruleWeights?: RuleWeight[] }
   | { type: 'SET_TOKEN_FLOW'; start: string; end: string }
   | { type: 'START_SIMULATION' }
   | { type: 'STOP_SIMULATION' }
@@ -427,6 +432,71 @@ const loadSavedNetsFromStorage = (): SavedPetriNet[] => {
 // Generate a unique ID
 const generateId = () => {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+};
+
+// Helper function for weighted random selection
+const getWeightedRandomRule = (selectedRules: string[], ruleWeights?: RuleWeight[]): string => {
+  // If no weights are provided, select randomly
+  if (!ruleWeights || ruleWeights.length === 0) {
+    return selectedRules[Math.floor(Math.random() * selectedRules.length)];
+  }
+  
+  // Calculate total assigned weight and find which rules have weights
+  const weightedRules: { [key: string]: number } = {};
+  let totalAssignedWeight = 0;
+  
+  // First, collect all assigned weights
+  for (const ruleWeight of ruleWeights) {
+    if (selectedRules.includes(ruleWeight.rule)) {
+      weightedRules[ruleWeight.rule] = ruleWeight.weight;
+      totalAssignedWeight += ruleWeight.weight;
+    }
+  }
+  
+  // Find unweighted rules
+  const unweightedRules = selectedRules.filter(rule => !Object.keys(weightedRules).includes(rule));
+  
+  // If total assigned weight exceeds 100%, normalize it to 100%
+  if (totalAssignedWeight > 100) {
+    const normalizationFactor = 100 / totalAssignedWeight;
+    Object.keys(weightedRules).forEach(rule => {
+      weightedRules[rule] *= normalizationFactor;
+    });
+    totalAssignedWeight = 100;
+  }
+  
+  // Distribute remaining weight among unweighted rules
+  const remainingWeight = 100 - totalAssignedWeight;
+  if (unweightedRules.length > 0) {
+    const weightPerUnweighted = remainingWeight / unweightedRules.length;
+    unweightedRules.forEach(rule => {
+      weightedRules[rule] = weightPerUnweighted;
+    });
+  }
+  
+  // Build weight ranges for selection
+  const weightRanges: { rule: string; min: number; max: number }[] = [];
+  let currentWeightMin = 0;
+  
+  Object.entries(weightedRules).forEach(([rule, weight]) => {
+    const min = currentWeightMin;
+    const max = currentWeightMin + weight;
+    weightRanges.push({ rule, min, max });
+    currentWeightMin = max;
+  });
+  
+  // Select a random value between 0 and 100
+  const randomValue = Math.random() * 100;
+  
+  // Find which range the random value falls into
+  for (const range of weightRanges) {
+    if (randomValue >= range.min && randomValue < range.max) {
+      return range.rule;
+    }
+  }
+  
+  // Fallback (should not happen if weights are properly calculated)
+  return selectedRules[0];
 };
 
 // Reducer function
@@ -616,7 +686,7 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
     }
       
     case 'GENERATE_BATCH': {
-      const { count, useRandom, selectedRules } = action;
+      const { count, useRandom, selectedRules, ruleWeights } = action;
       let newState = pushHistory(state);
       let newGraph = { ...newState.graph };
       
@@ -636,9 +706,8 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
             newState = addLogEntry(newState, `Batch random ${randomRule} on ${randomTarget.id}`);
           }
         } else if (selectedRules.length > 0) {
-          // Apply selected rules
-          const randomRuleIdx = Math.floor(Math.random() * selectedRules.length);
-          const selectedRule = selectedRules[randomRuleIdx];
+          // Apply selected rules with weights
+          const selectedRule = getWeightedRandomRule(selectedRules, ruleWeights);
           const ruleInfo = rulesMap[selectedRule];
           
           if (ruleInfo) {
@@ -1007,8 +1076,8 @@ export const PetriNetProvider: React.FC<{ children: ReactNode }> = ({ children }
     applyRule: (rule: string, target: string, endNodeId?: string) => 
       dispatch({ type: 'APPLY_RULE', rule, target, endNodeId }),
     applyRandomRule: () => dispatch({ type: 'APPLY_RANDOM_RULE' }),
-    generateBatch: (count: number, useRandom: boolean, selectedRules: string[]) => 
-      dispatch({ type: 'GENERATE_BATCH', count, useRandom, selectedRules }),
+    generateBatch: (count: number, useRandom: boolean, selectedRules: string[], ruleWeights?: RuleWeight[]) => 
+      dispatch({ type: 'GENERATE_BATCH', count, useRandom, selectedRules, ruleWeights }),
     setTokenFlow: (start: string, end: string) => 
       dispatch({ type: 'SET_TOKEN_FLOW', start, end }),
     startSimulation: () => dispatch({ type: 'START_SIMULATION' }),
