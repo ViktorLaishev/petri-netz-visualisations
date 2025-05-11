@@ -92,8 +92,14 @@ const PetriNetContext = createContext<PetriNetContextType | undefined>(undefined
 
 // Rule implementations
 const applyAbstractionRule = (graph: Graph, targetId: string): Graph => {
-  // Implementation of abstraction rule
+  // Implementation of abstraction rule (ψA)
   const newGraph = { ...graph };
+  
+  // Get target transition node
+  const targetNode = newGraph.nodes.find(node => node.id === targetId);
+  if (!targetNode || targetNode.type !== 'transition') return newGraph;
+  
+  // Create new place and transition
   const placeId = `P${newGraph.nodes.filter(n => n.type === 'place').length}`;
   const transId = `T${newGraph.nodes.filter(n => n.type === 'transition').length}`;
   
@@ -103,89 +109,156 @@ const applyAbstractionRule = (graph: Graph, targetId: string): Graph => {
     { id: transId, type: 'transition' }
   ];
   
-  // Find outputs of target transition
+  // Find outputs of target transition (places)
   const outputs = newGraph.edges
     .filter(e => e.source === targetId)
     .map(e => e.target);
   
-  // Remove edges from target to its outputs
+  // Remove direct edges from target to its outputs
   newGraph.edges = newGraph.edges.filter(e => !(e.source === targetId && outputs.includes(e.target)));
   
   // Add edges for the abstraction pattern
   newGraph.edges = [...newGraph.edges,
-    { source: targetId, target: placeId },
-    { source: placeId, target: transId },
-    ...outputs.map(output => ({ source: transId, target: output }))
+    { source: targetId, target: placeId }, // transition -> new place
+    { source: placeId, target: transId },  // new place -> new transition
+    ...outputs.map(output => ({ source: transId, target: output })) // new transition -> original outputs
   ];
   
   return newGraph;
 };
 
 const applyLinearTransitionRule = (graph: Graph, targetId: string): Graph => {
-  // Implementation of linear transition rule
+  // Implementation of linear dependent transition rule (ψT)
   const newGraph = { ...graph };
+  
+  // Get target place node
+  const targetNode = newGraph.nodes.find(node => node.id === targetId);
+  if (!targetNode || targetNode.type !== 'place') return newGraph;
+  
+  // Create new transition and place
   const transId = `T${newGraph.nodes.filter(n => n.type === 'transition').length}`;
+  const placeId = `P${newGraph.nodes.filter(n => n.type === 'place').length}`;
   
-  // Add new transition
-  newGraph.nodes = [...newGraph.nodes, { id: transId, type: 'transition' }];
+  // Add new nodes
+  newGraph.nodes = [
+    ...newGraph.nodes, 
+    { id: transId, type: 'transition' },
+    { id: placeId, type: 'place', tokens: 0 }
+  ];
   
-  // Connect target place to new transition
-  newGraph.edges = [...newGraph.edges, { source: targetId, target: transId }];
+  // Connect target to new transition, and new transition to new place
+  newGraph.edges = [
+    ...newGraph.edges, 
+    { source: targetId, target: transId },
+    { source: transId, target: placeId }
+  ];
   
-  // Find all output places via existing transitions
-  const transitions = newGraph.edges
-    .filter(e => e.source === targetId)
+  // Find existing transitions that the target place connects to
+  const connectedTransitions = newGraph.edges
+    .filter(e => e.source === targetId && 
+           newGraph.nodes.find(n => n.id === e.target)?.type === 'transition')
     .map(e => e.target);
   
+  // Find places that those transitions output to
   const outputPlaces = new Set<string>();
-  transitions.forEach(transId => {
+  connectedTransitions.forEach(transId => {
     newGraph.edges
-      .filter(e => e.source === transId && newGraph.nodes.find(n => n.id === e.target)?.type === 'place')
+      .filter(e => e.source === transId)
       .forEach(e => outputPlaces.add(e.target));
   });
   
-  // Connect new transition to all output places
-  outputPlaces.forEach(placeId => {
-    newGraph.edges = [...newGraph.edges, { source: transId, target: placeId }];
+  // Connect new place to the output places (via new transitions)
+  outputPlaces.forEach(outPlaceId => {
+    const newTransId = `T${newGraph.nodes.filter(n => n.type === 'transition').length}`;
+    newGraph.nodes.push({ id: newTransId, type: 'transition' });
+    newGraph.edges.push(
+      { source: placeId, target: newTransId },
+      { source: newTransId, target: outPlaceId }
+    );
   });
   
   return newGraph;
 };
 
 const applyLinearPlaceRule = (graph: Graph, targetId: string): Graph => {
-  // Implementation of linear place rule
+  // Implementation of linear place rule (ψP)
   const newGraph = { ...graph };
+  
+  // Get target transition node
+  const targetNode = newGraph.nodes.find(node => node.id === targetId);
+  if (!targetNode || targetNode.type !== 'transition') return newGraph;
+  
+  // Create new place and transition
   const placeId = `P${newGraph.nodes.filter(n => n.type === 'place').length}`;
+  const transId = `T${newGraph.nodes.filter(n => n.type === 'transition').length}`;
   
-  // Add new place
-  newGraph.nodes = [...newGraph.nodes, { id: placeId, type: 'place', tokens: 0 }];
+  // Add new nodes
+  newGraph.nodes = [
+    ...newGraph.nodes, 
+    { id: placeId, type: 'place', tokens: 0 },
+    { id: transId, type: 'transition' }
+  ];
   
-  // Find inputs to target transition
+  // Find inputs to target transition (places)
   const inputs = newGraph.edges
-    .filter(e => e.target === targetId && newGraph.nodes.find(n => n.id === e.source)?.type === 'place')
+    .filter(e => e.target === targetId && 
+           newGraph.nodes.find(n => n.id === e.source)?.type === 'place')
     .map(e => e.source);
   
   // Remove direct connections from input places to target
   newGraph.edges = newGraph.edges.filter(e => !(inputs.includes(e.source) && e.target === targetId));
   
-  // Connect inputs to new place and new place to target
+  // Connect inputs to new transition, new transition to new place, and new place to target
   inputs.forEach(inputId => {
-    newGraph.edges = [...newGraph.edges, { source: inputId, target: placeId }];
+    newGraph.edges = [...newGraph.edges, { source: inputId, target: transId }];
   });
   
-  newGraph.edges = [...newGraph.edges, { source: placeId, target: targetId }];
+  newGraph.edges = [
+    ...newGraph.edges, 
+    { source: transId, target: placeId },
+    { source: placeId, target: targetId }
+  ];
   
   return newGraph;
 };
 
 const applyDualAbstractionRule = (graph: Graph, targetId: string): Graph => {
-  // First apply abstraction, then linear transition
-  let newGraph = applyAbstractionRule(graph, targetId);
-  const newPlace = newGraph.nodes.filter(n => n.type === 'place').pop()?.id;
+  // Implementation of dual abstraction rule (ψD)
+  const newGraph = { ...graph };
   
-  if (newPlace) {
-    newGraph = applyLinearTransitionRule(newGraph, newPlace);
-  }
+  // Get target transition node
+  const targetNode = newGraph.nodes.find(node => node.id === targetId);
+  if (!targetNode || targetNode.type !== 'transition') return newGraph;
+  
+  // Create two new places and a transition
+  const place1Id = `P${newGraph.nodes.filter(n => n.type === 'place').length}`;
+  const place2Id = `P${newGraph.nodes.filter(n => n.type === 'place').length + 1}`;
+  const transId = `T${newGraph.nodes.filter(n => n.type === 'transition').length}`;
+  
+  // Add new nodes
+  newGraph.nodes = [
+    ...newGraph.nodes, 
+    { id: place1Id, type: 'place', tokens: 0 },
+    { id: place2Id, type: 'place', tokens: 0 },
+    { id: transId, type: 'transition' }
+  ];
+  
+  // Find outputs of target transition (places)
+  const outputs = newGraph.edges
+    .filter(e => e.source === targetId)
+    .map(e => e.target);
+  
+  // Remove direct edges from target to its outputs
+  newGraph.edges = newGraph.edges.filter(e => !(e.source === targetId && outputs.includes(e.target)));
+  
+  // Add edges for the dual abstraction pattern
+  newGraph.edges = [
+    ...newGraph.edges,
+    { source: targetId, target: place1Id },  // target -> place1
+    { source: place1Id, target: transId },   // place1 -> new transition
+    { source: transId, target: place2Id },   // new transition -> place2
+    ...outputs.map(output => ({ source: place2Id, target: output })) // place2 -> original outputs (must be transitions)
+  ];
   
   return newGraph;
 };
@@ -545,6 +618,7 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
         return state;
       }
       
+      const endNode = state.graph.nodes.find(n => n.id === end);
       if (!endNode || endNode.type !== 'place') {
         toast.error(`End node ${end} is not a valid place`);
         return state;

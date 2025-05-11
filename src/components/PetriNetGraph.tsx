@@ -1,5 +1,5 @@
 
-import React, { useRef, useEffect, useState } from "react";
+import React, { useRef, useEffect } from "react";
 import { usePetriNet } from "@/contexts/PetriNetContext";
 import cytoscape from "cytoscape";
 
