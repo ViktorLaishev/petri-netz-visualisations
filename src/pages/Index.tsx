@@ -1,733 +1,618 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Link } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Slider } from "@/components/ui/slider";
-import { Switch } from "@/components/ui/switch";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { 
-  AlertCircle, 
-  PlayCircle, 
-  Undo, 
-  RefreshCw, 
-  ArrowRight, 
-  Download, 
-  ZoomIn, 
-  FileText, 
-  Save, 
-  FolderOpen, 
-  HelpCircle 
-} from "lucide-react";
-import { toast } from "sonner";
+import React, { useState } from "react";
+import { usePetriNet } from "@/contexts/PetriNetContext";
 import PetriNetGraph from "@/components/PetriNetGraph";
-import { PetriNetProvider, usePetriNet } from "@/contexts/PetriNetContext";
-import LogTable from "@/components/LogTable";
-import TokenCounter from "@/components/TokenCounter";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { toast } from "sonner";
+import { LogTable } from "@/components/LogTable";
+import { TokenCounter } from "@/components/TokenCounter";
+import { Slider } from "@/components/ui/slider";
+import { Checkbox } from "@/components/ui/checkbox";
+import { InfoIcon, UndoIcon, RotateCcwIcon, PlayIcon, PauseIcon, CogIcon, DownloadIcon } from "lucide-react";
 import SavePetriNetDialog from "@/components/SavePetriNetDialog";
-import ThemeToggle from "@/components/ThemeToggle";
 
-const Index = () => {
-  const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
-  const { state } = usePetriNet();
-
-  const openSaveDialog = () => {
-    setIsSaveDialogOpen(true);
+const Index: React.FC = () => {
+  const {
+    state,
+    addPlace,
+    addTransition,
+    connectNodes,
+    addToken,
+    removeToken,
+    applyRule,
+    applyRandomRule,
+    setTokenFlow,
+    startSimulation,
+    stopSimulation,
+    undo,
+    reset,
+    centerGraph,
+    downloadLog,
+    generateBatch,
+    savePetriNet,
+    loadPetriNet,
+    deletePetriNet,
+    renamePetriNet,
+    generateEventLog,
+    downloadEventLog,
+    savedNets
+  } = usePetriNet();
+  const [placeId, setPlaceId] = useState("p1");
+  const [transitionId, setTransitionId] = useState("t1");
+  const [sourceNodeId, setSourceNodeId] = useState("p1");
+  const [targetNodeId, setTargetNodeId] = useState("t1");
+  const [startPlaceId, setStartPlaceId] = useState("p1");
+  const [endPlaceId, setEndPlaceId] = useState("p2");
+  const [rule, setRule] = useState("Abstraction ψA");
+  const [targetId, setTargetId] = useState("t1");
+  const [endNodeId, setEndNodeId] = useState("");
+  const [batchCount, setBatchCount] = useState(1);
+  const [useRandom, setUseRandom] = useState(false);
+  const [selectedRules, setSelectedRules] = useState<string[]>([]);
+  const [ruleWeights, setRuleWeights] = useState<{ rule: string; weight: number }[]>([]);
+  const [isSaveDialogVisible, setIsSaveDialogVisible] = useState(false);
+  const [isLoadDialogVisible, setIsLoadDialogVisible] = useState(false);
+  const [isRenameDialogVisible, setIsRenameDialogVisible] = useState(false);
+  const [selectedNetId, setSelectedNetId] = useState<string | null>(null);
+  const [renameNetId, setRenameNetId] = useState<string | null>(null);
+  const [renameNetName, setRenameNetName] = useState("");
+  
+  const rules = ["Abstraction ψA", "Linear Transition ψT", "Linear Place ψP", "Dual Abstraction ψD"];
+  
+  const handleAddPlace = () => {
+    addPlace(placeId);
+    setPlaceId((prev) => `p${parseInt(prev.slice(1)) + 1}`);
   };
-
-  const closeSaveDialog = () => {
-    setIsSaveDialogOpen(false);
+  
+  const handleAddTransition = () => {
+    addTransition(transitionId);
+    setTransitionId((prev) => `t${parseInt(prev.slice(1)) + 1}`);
   };
-
+  
+  const handleConnectNodes = () => {
+    connectNodes(sourceNodeId, targetNodeId);
+  };
+  
+  const handleAddToken = () => {
+    addToken(startPlaceId);
+  };
+  
+  const handleRemoveToken = () => {
+    removeToken(startPlaceId);
+  };
+  
+  const handleSetTokenFlow = () => {
+    setTokenFlow(startPlaceId, endPlaceId);
+  };
+  
+  const handleApplyRule = () => {
+    applyRule(rule, targetId, endNodeId);
+  };
+  
+  const handleApplyRandomRule = () => {
+    applyRandomRule();
+  };
+  
+  const handleGenerateBatch = () => {
+    generateBatch(batchCount, useRandom, selectedRules, ruleWeights);
+  };
+  
+  const handleRuleSelect = (rule: string) => {
+    setSelectedRules((prev) => {
+      if (prev.includes(rule)) {
+        return prev.filter((r) => r !== rule);
+      } else {
+        return [...prev, rule];
+      }
+    });
+  };
+  
+  const handleRuleWeightChange = (rule: string, weight: number) => {
+    setRuleWeights((prev) => {
+      const existingRule = prev.find((rw) => rw.rule === rule);
+      if (existingRule) {
+        return prev.map((rw) => (rw.rule === rule ? { ...rw, weight } : rw));
+      } else {
+        return [...prev, { rule, weight }];
+      }
+    });
+  };
+  
+  const handleOpenSaveDialog = () => {
+    setIsSaveDialogVisible(true);
+  };
+  
+  const handleCloseSaveDialog = () => {
+    setIsSaveDialogVisible(false);
+  };
+  
+  const handleOpenLoadDialog = () => {
+    setIsLoadDialogVisible(true);
+  };
+  
+  const handleCloseLoadDialog = () => {
+    setIsLoadDialogVisible(false);
+  };
+  
+  const handleLoadPetriNet = (id: string) => {
+    loadPetriNet(id);
+    handleCloseLoadDialog();
+  };
+  
+  const handleDeletePetriNet = (id: string) => {
+    deletePetriNet(id);
+  };
+  
+  const handleOpenRenameDialog = (id: string) => {
+    setRenameNetId(id);
+    setRenameNetName(savedNets.find(net => net.id === id)?.name || "");
+    setIsRenameDialogVisible(true);
+  };
+  
+  const handleCloseRenameDialog = () => {
+    setIsRenameDialogVisible(false);
+    setRenameNetId(null);
+    setRenameNetName("");
+  };
+  
+  const handleRenamePetriNet = () => {
+    if (renameNetId) {
+      renamePetriNet(renameNetId, renameNetName);
+      handleCloseRenameDialog();
+    }
+  };
+  
+  const handleGenerateEventLog = async () => {
+    try {
+      await generateEventLog();
+      toast.success("Event log generated successfully!");
+    } catch (error) {
+      console.error("Error generating event log:", error);
+      toast.error("Failed to generate event log.");
+    }
+  };
+  
+  const handleDownloadEventLog = () => {
+    downloadEventLog();
+  };
+  
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
-      <div className="container mx-auto p-4">
-        <header className="mb-6">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
-                Petri Net Flow Visualizer
-                {state.currentNetId && (
-                  <Badge variant="outline" className="ml-3">
-                    {state.savedNets.find(net => net.id === state.currentNetId)?.name || "Unnamed Net"}
-                  </Badge>
-                )}
-              </h1>
-              <p className="text-slate-500 dark:text-slate-400">Interactive visualization tool for Petri nets and token flows</p>
-            </div>
-            <div className="flex gap-2 items-center">
-              <ThemeToggle />
-              <Link to="/event-log">
-                <Button variant="outline" className="gap-2">
-                  <FileText className="h-4 w-4" />
-                  View Event Log
-                </Button>
-              </Link>
-              <Link to="/saved-nets">
-                <Button variant="outline" className="gap-2">
-                  <FolderOpen className="h-4 w-4" />
-                  Saved Nets
-                </Button>
-              </Link>
-              <Button variant="default" className="gap-2" onClick={openSaveDialog}>
-                <Save className="h-4 w-4" />
-                Save
-              </Button>
-            </div>
-          </div>
-        </header>
+    <div className="container mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-4">Petri Net Editor</h1>
+      
+      <Tabs defaultValue="graph" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="graph">Graph</TabsTrigger>
+          <TabsTrigger value="control">Control Panel</TabsTrigger>
+          <TabsTrigger value="log">Log</TabsTrigger>
+          <TabsTrigger value="tokens">Tokens</TabsTrigger>
+          <TabsTrigger value="event-log">Event Log</TabsTrigger>
+        </TabsList>
         
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left Panel - Controls */}
-          <div className="lg:col-span-3">
-            <ControlPanel />
-          </div>
-          
-          {/* Right Panel - Visualization */}
-          <div className="lg:col-span-9">
-            <Card className="h-full">
-              <CardHeader className="pb-0">
-                <div className="flex justify-between items-center">
-                  <CardTitle>Petri Net Visualization</CardTitle>
-                  <div className="flex gap-2">
-                    <StartSimulationButton />
-                    <StopSimulationButton />
-                    <CenterGraphButton />
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-4">
-                <div className="h-[600px] border rounded-md">
-                  <PetriNetGraph />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-        
-        <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Log Table */}
-          <Card>
-            <CardHeader className="pb-0">
-              <div className="flex justify-between items-center">
-                <CardTitle>Change Log</CardTitle>
-                <DownloadLogButton />
-              </div>
-            </CardHeader>
-            <CardContent className="pt-4">
-              <LogTable />
-            </CardContent>
-          </Card>
-          
-          {/* Token Counts */}
+        <TabsContent value="graph" className="outline-none">
           <Card>
             <CardHeader>
-              <CardTitle>Token Counts</CardTitle>
+              <CardTitle>Petri Net Graph</CardTitle>
+              <CardDescription>Visualize and interact with the Petri Net graph.</CardDescription>
             </CardHeader>
             <CardContent>
-              <TokenCounter />
+              <PetriNetGraph/>
             </CardContent>
           </Card>
-        </div>
-      </div>
-
-      {/* Save Dialog */}
-      <SavePetriNetDialog isOpen={isSaveDialogOpen} onClose={closeSaveDialog} />
-    </div>
-  );
-};
-
-// Control Panel Component
-const ControlPanel = () => {
-  return (
-    <Tabs defaultValue="rules" className="h-full">
-      <TabsList className="grid grid-cols-3">
-        <TabsTrigger value="rules">Rules</TabsTrigger>
-        <TabsTrigger value="flow">Flow</TabsTrigger>
-        <TabsTrigger value="batch">Batch</TabsTrigger>
-      </TabsList>
-      
-      <div className="mt-2">
-        <Card>
-          <CardContent className="pt-6">
-            {/* Basic Controls */}
-            <div className="mb-4 flex gap-2">
-              <UndoButton />
-              <ResetButton />
-            </div>
-            
-            <TabsContent value="rules" className="mt-0">
-              <RuleControls />
-            </TabsContent>
-            
-            <TabsContent value="flow" className="mt-0">
-              <FlowControls />
-            </TabsContent>
-            
-            <TabsContent value="batch" className="mt-0">
-              <BatchControls />
-            </TabsContent>
-          </CardContent>
-        </Card>
-      </div>
-    </Tabs>
-  );
-};
-
-// Rule Controls Component - Updated to support selecting end nodes
-const RuleControls = () => {
-  const { state, applyRule, applyRandomRule } = usePetriNet();
-  const [selectedRule, setSelectedRule] = useState("");
-  const [targetNode, setTargetNode] = useState("");
-  const [endNode, setEndNode] = useState("");
-
-  // Get valid targets based on the selected rule
-  const getTargetOptions = () => {
-    if (!selectedRule) return [];
-    
-    // Determine node type required for the selected rule
-    let requiredType = "";
-    if (selectedRule.includes("Abstraction") || selectedRule.includes("Linear Place")) {
-      requiredType = "transition";
-    } else if (selectedRule.includes("Linear Transition")) {
-      requiredType = "place";
-    }
-    
-    // Filter nodes by the required type
-    return state.graph.nodes
-      .filter(node => node.type === requiredType)
-      .map(node => ({
-        label: node.id,
-        value: node.id
-      }));
-  };
-
-  // Get valid end nodes based on the selected rule
-  const getEndNodeOptions = () => {
-    if (!selectedRule) return [];
-    
-    // Only Linear Transition and Dual Abstraction rules support end nodes
-    if (selectedRule === "Linear Transition ψT") {
-      return state.graph.nodes
-        .filter(node => node.type === 'place')
-        .map(node => ({
-          label: node.id,
-          value: node.id
-        }));
-    } else if (selectedRule === "Dual Abstraction ψD") {
-      return state.graph.nodes
-        .filter(node => node.type === 'transition')
-        .map(node => ({
-          label: node.id,
-          value: node.id
-        }));
-    }
-    
-    return [];
-  };
-
-  // Check if the selected rule supports end nodes
-  const supportsEndNode = () => {
-    return selectedRule === "Linear Transition ψT" || selectedRule === "Dual Abstraction ψD";
-  };
-
-  const handleApplyRule = () => {
-    if (selectedRule && targetNode) {
-      // Only include endNode if the rule supports it and an end node is selected
-      const endNodeToUse = supportsEndNode() && endNode && endNode !== "none" ? endNode : undefined;
-      applyRule(selectedRule, targetNode, endNodeToUse);
-      toast.success(`Applied ${selectedRule} on ${targetNode}${endNodeToUse ? ` to ${endNodeToUse}` : ''}`);
-    } else {
-      toast.error("Please select both a rule and a target");
-    }
-  };
-
-  // Reset end node when rule changes
-  useEffect(() => {
-    setEndNode("");
-  }, [selectedRule]);
-
-  return (
-    <div className="space-y-4">
-      <div>
-        <Label>Select Rule</Label>
-        <Select value={selectedRule} onValueChange={setSelectedRule}>
-          <SelectTrigger className="mt-1">
-            <SelectValue placeholder="Choose rule" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="Abstraction ψA">Abstraction ψA</SelectItem>
-            <SelectItem value="Linear Transition ψT">Linear Transition ψT</SelectItem>
-            <SelectItem value="Linear Place ψP">Linear Place ψP</SelectItem>
-            <SelectItem value="Dual Abstraction ψD">Dual Abstraction ψD</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      
-      <div>
-        <Label>Start Node</Label>
-        <Select value={targetNode} onValueChange={setTargetNode}>
-          <SelectTrigger className="mt-1">
-            <SelectValue placeholder="Select target" />
-          </SelectTrigger>
-          <SelectContent>
-            {getTargetOptions().map(option => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-            {getTargetOptions().length === 0 && (
-              <SelectItem value="no-valid-targets" disabled>
-                {!selectedRule ? "Select a rule first" : "No valid targets"}
-              </SelectItem>
-            )}
-          </SelectContent>
-        </Select>
-      </div>
-      
-      {/* Show end node selection only for rules that support it */}
-      {supportsEndNode() && (
-        <div>
-          <Label>End Node</Label>
-          <Select value={endNode} onValueChange={setEndNode}>
-            <SelectTrigger className="mt-1">
-              <SelectValue placeholder="Select end node (optional)" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">None (default behavior)</SelectItem>
-              {getEndNodeOptions().map(option => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-      
-      <div className="pt-1 space-y-2">
-        <Button 
-          className="w-full" 
-          size="sm"
-          onClick={handleApplyRule}
-        >
-          Apply Rule
-        </Button>
-        <Button 
-          variant="outline" 
-          className="w-full" 
-          size="sm"
-          onClick={() => {
-            applyRandomRule();
-            toast.success("Applied random rule");
-          }}
-        >
-          Apply Random Rule
-        </Button>
-      </div>
-    </div>
-  );
-};
-
-// Flow Controls Component
-const FlowControls = () => {
-  const { state, setTokenFlow } = usePetriNet();
-  const [startPlace, setStartPlace] = useState("");
-  const [endPlace, setEndPlace] = useState("");
-
-  // Get all places for the flow dropdowns
-  const placeOptions = state.graph.nodes
-    .filter(node => node.type === 'place')
-    .map(node => ({
-      label: node.id,
-      value: node.id
-    }));
-
-  const handleSetTokenFlow = () => {
-    if (startPlace && endPlace) {
-      setTokenFlow(startPlace, endPlace);
-      toast.success(`Set token flow from ${startPlace} to ${endPlace}`);
-    } else {
-      toast.error("Please select both start and end places");
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      <div>
-        <Label>Start Place</Label>
-        <Select value={startPlace} onValueChange={setStartPlace}>
-          <SelectTrigger className="mt-1">
-            <SelectValue placeholder="Select start" />
-          </SelectTrigger>
-          <SelectContent>
-            {placeOptions.map(option => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-            {placeOptions.length === 0 && (
-              <SelectItem value="dummy" disabled>No places available</SelectItem>
-            )}
-          </SelectContent>
-        </Select>
-      </div>
-      
-      <div>
-        <Label>End Place</Label>
-        <Select value={endPlace} onValueChange={setEndPlace}>
-          <SelectTrigger className="mt-1">
-            <SelectValue placeholder="Select end" />
-          </SelectTrigger>
-          <SelectContent>
-            {placeOptions.map(option => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-            {placeOptions.length === 0 && (
-              <SelectItem value="dummy" disabled>No places available</SelectItem>
-            )}
-          </SelectContent>
-        </Select>
-      </div>
-      
-      <div className="pt-1 space-y-2">
-        <Button 
-          className="w-full" 
-          size="sm"
-          onClick={handleSetTokenFlow}
-        >
-          Set Token Flow
-        </Button>
-        <StartSimulationButton className="w-full" />
-      </div>
-    </div>
-  );
-};
-
-// Batch Controls Component with weighted randomization
-const BatchControls = () => {
-  const { generateBatch } = usePetriNet();
-  const [count, setCount] = useState(1);
-  const [useRandom, setUseRandom] = useState(true);
-  const [selectedRules, setSelectedRules] = useState<string[]>([]);
-  const [useWeights, setUseWeights] = useState(false);
-  const [ruleWeights, setRuleWeights] = useState<{ rule: string; weight: number }[]>([]);
-  
-  // List of all available rules
-  const availableRules = [
-    "Abstraction ψA", 
-    "Linear Transition ψT", 
-    "Linear Place ψP", 
-    "Dual Abstraction ψD"
-  ];
-
-  // Calculate total weight assigned
-  const totalWeight = ruleWeights.reduce((acc, rw) => acc + rw.weight, 0);
-  
-  // Calculate remaining weight for unassigned rules
-  const assignedRulesCount = ruleWeights.length;
-  const unassignedRulesCount = selectedRules.length - assignedRulesCount;
-  const remainingWeight = Math.max(0, 100 - totalWeight);
-  const weightPerUnassignedRule = unassignedRulesCount > 0 ? (remainingWeight / unassignedRulesCount) : 0;
-
-  // Handle rule selection
-  const handleRuleSelection = (rule: string, checked: boolean) => {
-    if (checked) {
-      setSelectedRules(prev => [...prev, rule]);
-    } else {
-      setSelectedRules(prev => prev.filter(r => r !== rule));
-      // Also remove any weights assigned to this rule
-      setRuleWeights(prev => prev.filter(rw => rw.rule !== rule));
-    }
-  };
-
-  // Handle weight change
-  const handleWeightChange = (rule: string, weight: number) => {
-    const existingWeightIndex = ruleWeights.findIndex(rw => rw.rule === rule);
-    
-    if (existingWeightIndex >= 0) {
-      // Update existing weight
-      setRuleWeights(prev => 
-        prev.map((rw, idx) => 
-          idx === existingWeightIndex ? { ...rw, weight } : rw
-        )
-      );
-    } else {
-      // Add new weight
-      setRuleWeights(prev => [...prev, { rule, weight }]);
-    }
-  };
-
-  // Reset weight for a rule
-  const resetWeight = (rule: string) => {
-    setRuleWeights(prev => prev.filter(rw => rw.rule !== rule));
-  };
-
-  // Get the weight for a rule
-  const getRuleWeight = (rule: string): number | undefined => {
-    const weightEntry = ruleWeights.find(rw => rw.rule === rule);
-    return weightEntry?.weight;
-  };
-
-  // Handle generate batch
-  const handleGenerate = () => {
-    generateBatch(count, useRandom, selectedRules, useWeights ? ruleWeights : undefined);
-    toast.success(`Generated batch with ${count} rules`);
-  };
-
-  return (
-    <div className="space-y-4">
-      <div>
-        <Label>Number of Rules</Label>
-        <Input 
-          type="number" 
-          min={1} 
-          defaultValue={1} 
-          className="mt-1"
-          value={count}
-          onChange={(e) => setCount(parseInt(e.target.value) || 1)}
-        />
-      </div>
-      
-      <div className="flex items-center space-x-2">
-        <Checkbox 
-          id="random-rules" 
-          checked={useRandom} 
-          onCheckedChange={(checked) => setUseRandom(!!checked)} 
-        />
-        <Label htmlFor="random-rules">Use random rules</Label>
-      </div>
-      
-      {!useRandom && (
-        <>
-          <div>
-            <div className="flex items-center justify-between">
-              <Label className="text-sm font-medium mb-1">Select Rules</Label>
-              {selectedRules.length > 0 && (
-                <div className="flex items-center space-x-2">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger className="text-muted-foreground">
-                        <HelpCircle size={14} />
-                      </TooltipTrigger>
-                      <TooltipContent className="w-72 p-2">
-                        <p>Set the probability weight for each rule. The total weight should not exceed 100%. 
-                        Any remaining weight will be distributed evenly among rules without specific weights.</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                  <div className="flex items-center space-x-2">
-                    <Switch 
-                      id="use-weights" 
-                      checked={useWeights}
-                      onCheckedChange={setUseWeights}
+        </TabsContent>
+        
+        <TabsContent value="control" className="outline-none">
+          <Card>
+            <CardHeader>
+              <CardTitle>Control Panel</CardTitle>
+              <CardDescription>Add nodes, connect them, and manipulate tokens.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Add Place */}
+                <div>
+                  <Label htmlFor="placeId">Place ID</Label>
+                  <div className="flex space-x-2">
+                    <Input
+                      type="text"
+                      id="placeId"
+                      value={placeId}
+                      onChange={(e) => setPlaceId(e.target.value)}
                     />
-                    <Label htmlFor="use-weights" className="text-xs">Use weights</Label>
+                    <Button onClick={handleAddPlace}>Add Place</Button>
                   </div>
                 </div>
-              )}
-            </div>
-            
-            <ScrollArea className="h-48 border rounded-md p-2 mt-1">
-              <div className="space-y-3 pr-3">
-                {availableRules.map(rule => (
-                  <div key={rule} className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <Checkbox 
-                          id={`rule-${rule}`} 
-                          checked={selectedRules.includes(rule)}
-                          onCheckedChange={(checked) => handleRuleSelection(rule, !!checked)}
-                        />
-                        <Label htmlFor={`rule-${rule}`} className="text-sm">{rule}</Label>
-                      </div>
-                      {selectedRules.includes(rule) && useWeights && (
-                        <div className="text-xs text-muted-foreground">
-                          {getRuleWeight(rule) !== undefined ? (
-                            <span>
-                              {getRuleWeight(rule)}%
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="h-5 px-1 ml-1" 
-                                onClick={() => resetWeight(rule)}
-                              >
-                                ×
-                              </Button>
-                            </span>
-                          ) : (
-                            <span>{weightPerUnassignedRule.toFixed(1)}% (auto)</span>
-                          )}
+                
+                {/* Add Transition */}
+                <div>
+                  <Label htmlFor="transitionId">Transition ID</Label>
+                  <div className="flex space-x-2">
+                    <Input
+                      type="text"
+                      id="transitionId"
+                      value={transitionId}
+                      onChange={(e) => setTransitionId(e.target.value)}
+                    />
+                    <Button onClick={handleAddTransition}>Add Transition</Button>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Connect Nodes */}
+                <div>
+                  <Label htmlFor="sourceNodeId">Source Node ID</Label>
+                  <Input
+                    type="text"
+                    id="sourceNodeId"
+                    value={sourceNodeId}
+                    onChange={(e) => setSourceNodeId(e.target.value)}
+                  />
+                  <Label htmlFor="targetNodeId">Target Node ID</Label>
+                  <Input
+                    type="text"
+                    id="targetNodeId"
+                    value={targetNodeId}
+                    onChange={(e) => setTargetNodeId(e.target.value)}
+                  />
+                  <Button onClick={handleConnectNodes}>Connect Nodes</Button>
+                </div>
+                
+                {/* Add/Remove Token */}
+                <div>
+                  <Label htmlFor="startPlaceId">Place ID</Label>
+                  <Input
+                    type="text"
+                    id="startPlaceId"
+                    value={startPlaceId}
+                    onChange={(e) => setStartPlaceId(e.target.value)}
+                  />
+                  <div className="flex space-x-2">
+                    <Button onClick={handleAddToken}>Add Token</Button>
+                    <Button onClick={handleRemoveToken}>Remove Token</Button>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Set Token Flow */}
+              <div>
+                <Label htmlFor="startPlaceId">Start Place ID</Label>
+                <Input
+                  type="text"
+                  id="startPlaceId"
+                  value={startPlaceId}
+                  onChange={(e) => setStartPlaceId(e.target.value)}
+                />
+                <Label htmlFor="endPlaceId">End Place ID</Label>
+                <Input
+                  type="text"
+                  id="endPlaceId"
+                  value={endPlaceId}
+                  onChange={(e) => setEndPlaceId(e.target.value)}
+                />
+                <Button onClick={handleSetTokenFlow}>Set Token Flow</Button>
+              </div>
+              
+              {/* Apply Rule */}
+              <div>
+                <Label htmlFor="rule">Rule</Label>
+                <Select onValueChange={setRule}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select a rule"/>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {rules.map((rule) => (
+                      <SelectItem key={rule} value={rule}>{rule}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Label htmlFor="targetId">Target ID</Label>
+                <Input
+                  type="text"
+                  id="targetId"
+                  value={targetId}
+                  onChange={(e) => setTargetId(e.target.value)}
+                />
+                <Label htmlFor="endNodeId">End Node ID (Optional)</Label>
+                <Input
+                  type="text"
+                  id="endNodeId"
+                  value={endNodeId}
+                  onChange={(e) => setEndNodeId(e.target.value)}
+                />
+                <Button onClick={handleApplyRule}>Apply Rule</Button>
+              </div>
+              
+              {/* Apply Random Rule */}
+              <div>
+                <Button onClick={handleApplyRandomRule}>Apply Random Rule</Button>
+              </div>
+              
+              {/* Generate Batch */}
+              <div>
+                <Label htmlFor="batchCount">Batch Count</Label>
+                <Input
+                  type="number"
+                  id="batchCount"
+                  value={batchCount}
+                  onChange={(e) => setBatchCount(parseInt(e.target.value))}
+                />
+                <div className="flex items-center space-x-2 mt-2">
+                  <Switch id="useRandom" checked={useRandom} onCheckedChange={setUseRandom}/>
+                  <Label htmlFor="useRandom">Use Random Rules</Label>
+                </div>
+                
+                {!useRandom && (
+                  <div className="mt-2">
+                    <p className="text-sm text-muted-foreground">Select Rules:</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {rules.map((rule) => (
+                        <div key={rule} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`rule-${rule}`}
+                            checked={selectedRules.includes(rule)}
+                            onCheckedChange={() => handleRuleSelect(rule)}
+                          />
+                          <Label htmlFor={`rule-${rule}`}>{rule}</Label>
                         </div>
-                      )}
+                      ))}
                     </div>
-
-                    {selectedRules.includes(rule) && useWeights && (
-                      <div className="pl-6 pr-2">
-                        <Slider
-                          value={[getRuleWeight(rule) || 0]}
-                          min={0}
-                          max={100}
-                          step={5}
-                          onValueChange={(values) => handleWeightChange(rule, values[0])}
-                        />
+                    
+                    {selectedRules.length > 0 && (
+                      <div className="mt-2">
+                        <p className="text-sm text-muted-foreground">Set Rule Weights:</p>
+                        {selectedRules.map((rule) => (
+                          <div key={rule} className="flex items-center space-x-2">
+                            <Label htmlFor={`weight-${rule}`} className="w-24">{rule}:</Label>
+                            <Slider
+                              id={`weight-${rule}`}
+                              defaultValue={[ruleWeights.find((rw) => rw.rule === rule)?.weight || 0]}
+                              max={100}
+                              step={1}
+                              onValueChange={(value) => handleRuleWeightChange(rule, value[0])}
+                            />
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
-                ))}
-              </div>
-            </ScrollArea>
-            
-            {useWeights && selectedRules.length > 0 && (
-              <div className="mt-2 space-y-1">
-                <div className="flex items-center justify-between text-sm">
-                  <span>Total assigned:</span>
-                  <span className={totalWeight > 100 ? "text-red-500 font-medium" : "font-medium"}>
-                    {totalWeight}%
-                  </span>
-                </div>
-                {totalWeight > 100 && (
-                  <div className="text-xs text-red-500">
-                    Total exceeds 100%. Weights will be normalized.
-                  </div>
                 )}
-                {unassignedRulesCount > 0 && (
-                  <div className="text-xs text-muted-foreground">
-                    {remainingWeight}% will be distributed among {unassignedRulesCount} unweighted rule(s)
-                  </div>
-                )}
+                
+                <Button onClick={handleGenerateBatch}>Generate Batch</Button>
               </div>
-            )}
+            </CardContent>
+            <CardFooter className="flex justify-between">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Button variant="outline" size="icon" onClick={startSimulation} disabled={state.simulationActive}>
+                      <PlayIcon className="h-4 w-4"/>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Start Simulation</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Button variant="outline" size="icon" onClick={stopSimulation} disabled={!state.simulationActive}>
+                      <PauseIcon className="h-4 w-4"/>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Stop Simulation</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Button variant="outline" size="icon" onClick={undo} disabled={state.history.length <= 1}>
+                      <UndoIcon className="h-4 w-4"/>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Undo</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Button variant="outline" size="icon" onClick={reset}>
+                      <RotateCcwIcon className="h-4 w-4"/>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Reset</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Button variant="outline" size="icon" onClick={centerGraph}>
+                      <CogIcon className="h-4 w-4"/>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Center Graph</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Button variant="outline" size="icon" onClick={downloadLog}>
+                      <DownloadIcon className="h-4 w-4"/>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Download Log</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Button variant="outline" size="icon" onClick={handleGenerateEventLog}>
+                      <InfoIcon className="h-4 w-4"/>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Generate Event Log</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Button variant="outline" size="icon" onClick={handleDownloadEventLog}>
+                      <DownloadIcon className="h-4 w-4"/>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Download Event Log</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Button variant="outline" size="icon" onClick={handleOpenSaveDialog}>
+                      <InfoIcon className="h-4 w-4"/>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Save Petri Net</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Button variant="outline" size="icon" onClick={handleOpenLoadDialog}>
+                      <InfoIcon className="h-4 w-4"/>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Load Petri Net</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </CardFooter>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="log" className="outline-none">
+          <Card>
+            <CardHeader>
+              <CardTitle>Action Log</CardTitle>
+              <CardDescription>Review the history of actions performed on the Petri Net.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-[400px] w-full rounded-md border">
+                <LogTable/>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="tokens" className="outline-none">
+          <Card>
+            <CardHeader>
+              <CardTitle>Token Counter</CardTitle>
+              <CardDescription>See the number of tokens in each place.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <TokenCounter/>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="event-log" className="outline-none">
+          <Card>
+            <CardHeader>
+              <CardTitle>Event Log</CardTitle>
+              <CardDescription>View the generated event log.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-[400px] w-full rounded-md border">
+                {state.eventLog ? (
+                  <LogTable/>
+                ) : (
+                  <p className="text-muted-foreground">No event log generated yet.</p>
+                )}
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+      
+      <SavePetriNetDialog isOpen={isSaveDialogVisible} onClose={handleCloseSaveDialog}/>
+      
+      {/* Load Petri Net Dialog */}
+      {isLoadDialogVisible && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center">
+          <div className="bg-white p-6 rounded-md shadow-lg">
+            <h2 className="text-lg font-semibold mb-4">Load Petri Net</h2>
+            <ul>
+              {savedNets.map((net) => (
+                <li key={net.id} className="flex justify-between items-center py-2 border-b">
+                  <span>{net.name}</span>
+                  <div>
+                    <Button variant="outline" onClick={() => handleLoadPetriNet(net.id)}>Load</Button>
+                    <Button variant="destructive" onClick={() => handleDeletePetriNet(net.id)}>Delete</Button>
+                    <Button variant="secondary" onClick={() => handleOpenRenameDialog(net.id)}>Rename</Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-4 flex justify-end">
+              <Button variant="secondary" onClick={handleCloseLoadDialog}>Cancel</Button>
+            </div>
           </div>
-        </>
+        </div>
       )}
       
-      <Button 
-        className="w-full" 
-        size="sm"
-        onClick={handleGenerate}
-        disabled={!useRandom && selectedRules.length === 0}
-      >
-        Generate
-      </Button>
+      {/* Rename Petri Net Dialog */}
+      {isRenameDialogVisible && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center">
+          <div className="bg-white p-6 rounded-md shadow-lg">
+            <h2 className="text-lg font-semibold mb-4">Rename Petri Net</h2>
+            <Label htmlFor="renameNetName">New Name</Label>
+            <Input
+              type="text"
+              id="renameNetName"
+              value={renameNetName}
+              onChange={(e) => setRenameNetName(e.target.value)}
+            />
+            <div className="mt-4 flex justify-end">
+              <Button variant="secondary" onClick={handleCloseRenameDialog}>Cancel</Button>
+              <Button onClick={handleRenamePetriNet}>Rename</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
-  );
-};
-
-// Utility Button Components
-const UndoButton = () => {
-  const { undo } = usePetriNet();
-  
-  return (
-    <Button 
-      variant="outline" 
-      className="w-1/2" 
-      size="sm"
-      onClick={() => {
-        undo();
-        toast.info("Undid last action");
-      }}
-    >
-      <Undo className="h-4 w-4 mr-2" />
-      Undo
-    </Button>
-  );
-};
-
-const ResetButton = () => {
-  const { reset } = usePetriNet();
-  
-  return (
-    <Button 
-      variant="outline" 
-      className="w-1/2" 
-      size="sm"
-      onClick={() => {
-        reset();
-        toast.info("Reset to default state");
-      }}
-    >
-      <RefreshCw className="h-4 w-4 mr-2" />
-      Reset
-    </Button>
-  );
-};
-
-const StartSimulationButton = ({ className = "" }) => {
-  const { startSimulation } = usePetriNet();
-  
-  return (
-    <Button 
-      variant="default" 
-      className={`bg-green-600 hover:bg-green-700 ${className}`}
-      onClick={() => {
-        startSimulation();
-        toast.success("Simulation started");
-      }}
-    >
-      <PlayCircle className="h-4 w-4 mr-2" />
-      Start Simulation
-    </Button>
-  );
-};
-
-const CenterGraphButton = () => {
-  const { centerGraph } = usePetriNet();
-  
-  return (
-    <Button 
-      variant="outline" 
-      size="sm" 
-      onClick={() => {
-        centerGraph();
-        toast.info("Graph centered");
-      }}
-    >
-      <ZoomIn className="h-4 w-4 mr-2" />
-      Center
-    </Button>
-  );
-};
-
-const DownloadLogButton = () => {
-  const { downloadLog } = usePetriNet();
-  
-  return (
-    <Button 
-      variant="outline" 
-      size="sm"
-      onClick={() => {
-        downloadLog();
-        toast.success("Log downloaded");
-      }}
-    >
-      <Download className="h-4 w-4 mr-2" />
-      Download CSV
-    </Button>
-  );
-};
-
-const StopSimulationButton = ({ className = "" }) => {
-  const { stopSimulation } = usePetriNet();
-  return (
-    <Button
-      variant="destructive"
-      className={`bg-red-600 hover:bg-red-700 ${className}`}
-      onClick={() => {
-        stopSimulation();
-        // Don't toast here; feedback provided by animation change
-      }}
-    >
-      <span className="mr-2">⏹</span>
-      Stop Simulation
-    </Button>
   );
 };
 
