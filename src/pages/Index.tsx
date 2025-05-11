@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,7 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from "@/components/ui/tooltip";
-import { RefreshCw, Undo, FileText, Save, FolderOpen, Play, Square, Maximize, ZoomIn, HelpCircle } from "lucide-react";
+import { RefreshCw, Undo, FileText, Save, FolderOpen, Play, Square, Maximize, ZoomIn, HelpCircle, Minimize } from "lucide-react";
 import { toast } from "sonner";
 import PetriNetGraph from "@/components/PetriNetGraph";
 import { usePetriNet } from "@/contexts/PetriNetContext";
@@ -35,7 +36,8 @@ import ThemeToggle from "@/components/ThemeToggle";
 const Index = () => {
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
   const { state } = usePetriNet();
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isGraphFullscreen, setIsGraphFullscreen] = useState(false);
+  const graphContainerRef = useRef(null);
 
   const openSaveDialog = () => {
     setIsSaveDialogOpen(true);
@@ -45,21 +47,34 @@ const Index = () => {
     setIsSaveDialogOpen(false);
   };
 
-  const toggleFullscreen = () => {
-    const element = document.documentElement;
+  const toggleGraphFullscreen = () => {
+    if (!graphContainerRef.current) return;
     
     if (!document.fullscreenElement) {
-      element.requestFullscreen().catch(err => {
+      graphContainerRef.current.requestFullscreen().catch(err => {
         toast.error("Error attempting to enable fullscreen mode:", err.message);
       });
-      setIsFullscreen(true);
+      setIsGraphFullscreen(true);
     } else {
       if (document.exitFullscreen) {
         document.exitFullscreen();
-        setIsFullscreen(false);
+        setIsGraphFullscreen(false);
       }
     }
   };
+
+  // Handle fullscreen change events from browser
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsGraphFullscreen(!!document.fullscreenElement);
+    };
+    
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
@@ -117,17 +132,24 @@ const Index = () => {
                     <Button 
                       variant="outline" 
                       size="sm" 
-                      onClick={toggleFullscreen}
+                      onClick={toggleGraphFullscreen}
                     >
-                      <Maximize className="h-4 w-4 mr-2" />
-                      {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+                      {isGraphFullscreen ? (
+                        <Minimize className="h-4 w-4 mr-2" />
+                      ) : (
+                        <Maximize className="h-4 w-4 mr-2" />
+                      )}
+                      {isGraphFullscreen ? "Exit Fullscreen" : "Fullscreen"}
                     </Button>
                     <CenterGraphButton />
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="pt-4">
-                <div className="h-[600px] border rounded-md">
+                <div 
+                  ref={graphContainerRef} 
+                  className="h-[600px] border rounded-md"
+                >
                   <PetriNetGraph />
                 </div>
               </CardContent>
