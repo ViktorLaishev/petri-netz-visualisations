@@ -21,7 +21,7 @@ interface SavePetriNetDialogProps {
 
 const SavePetriNetDialog: React.FC<SavePetriNetDialogProps> = ({ isOpen, onClose }) => {
   const [name, setName] = useState("");
-  const { savePetriNet } = usePetriNet();
+  const { dispatch } = usePetriNet();
 
   const handleSave = () => {
     if (!name.trim()) {
@@ -29,7 +29,10 @@ const SavePetriNetDialog: React.FC<SavePetriNetDialogProps> = ({ isOpen, onClose
       return;
     }
 
-    savePetriNet(name);
+    dispatch({
+      type: "SAVE_PETRI_NET",
+      payload: { name }
+    });
     toast.success(`Petri net "${name}" saved successfully`);
     setName("");
     onClose();
