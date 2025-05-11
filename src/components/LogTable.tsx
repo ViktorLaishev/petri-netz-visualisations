@@ -8,7 +8,7 @@ const LogTable: React.FC = () => {
   
   return (
     <div className="border rounded-md overflow-hidden">
-      <div className="max-h-[200px] overflow-y-auto">
+      <div className="max-h-[400px] overflow-y-auto"> {/* Increased height to show 10 lines */}
         <Table>
           <TableHeader>
             <TableRow>

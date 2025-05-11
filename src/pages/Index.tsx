@@ -1,29 +1,23 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Slider } from "@/components/ui/slider";
-import { Switch } from "@/components/ui/switch";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { AlertCircle, PlayCircle, Undo, RefreshCw, Plus, ArrowRight, Download, ZoomIn, FileText, Save, FolderOpen, HelpCircle } from "lucide-react";
+import { RefreshCw, Undo, FileText, Save, FolderOpen, Play, Square, Maximize, ZoomIn } from "lucide-react";
 import { toast } from "sonner";
 import PetriNetGraph from "@/components/PetriNetGraph";
-import { PetriNetProvider, usePetriNet } from "@/contexts/PetriNetContext";
+import { usePetriNet } from "@/contexts/PetriNetContext";
 import LogTable from "@/components/LogTable";
 import TokenCounter from "@/components/TokenCounter";
 import SavePetriNetDialog from "@/components/SavePetriNetDialog";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const Index = () => {
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
   const { state } = usePetriNet();
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const openSaveDialog = () => {
     setIsSaveDialogOpen(true);
@@ -31,6 +25,22 @@ const Index = () => {
 
   const closeSaveDialog = () => {
     setIsSaveDialogOpen(false);
+  };
+
+  const toggleFullscreen = () => {
+    const element = document.documentElement;
+    
+    if (!document.fullscreenElement) {
+      element.requestFullscreen().catch(err => {
+        toast.error("Error attempting to enable fullscreen mode:", err.message);
+      });
+      setIsFullscreen(true);
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+        setIsFullscreen(false);
+      }
+    }
   };
 
   return (
@@ -49,7 +59,8 @@ const Index = () => {
               </h1>
               <p className="text-slate-500 dark:text-slate-400">Interactive visualization tool for Petri nets and token flows</p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center">
+              <ThemeToggle />
               <Link to="/event-log">
                 <Button variant="outline" className="gap-2">
                   <FileText className="h-4 w-4" />
@@ -85,6 +96,14 @@ const Index = () => {
                   <div className="flex gap-2">
                     <StartSimulationButton />
                     <StopSimulationButton />
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={toggleFullscreen}
+                    >
+                      <Maximize className="h-4 w-4 mr-2" />
+                      {isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+                    </Button>
                     <CenterGraphButton />
                   </div>
                 </div>
@@ -103,7 +122,7 @@ const Index = () => {
           <Card>
             <CardHeader className="pb-0">
               <div className="flex justify-between items-center">
-                <CardTitle>Process Log</CardTitle>
+                <CardTitle>Change Log</CardTitle>
                 <DownloadLogButton />
               </div>
             </CardHeader>
@@ -133,9 +152,8 @@ const Index = () => {
 // Control Panel Component
 const ControlPanel = () => {
   return (
-    <Tabs defaultValue="nodes" className="h-full">
-      <TabsList className="grid grid-cols-4">
-        <TabsTrigger value="nodes">Nodes</TabsTrigger>
+    <Tabs defaultValue="rules" className="h-full">
+      <TabsList className="grid grid-cols-3">
         <TabsTrigger value="rules">Rules</TabsTrigger>
         <TabsTrigger value="flow">Flow</TabsTrigger>
         <TabsTrigger value="batch">Batch</TabsTrigger>
@@ -149,10 +167,6 @@ const ControlPanel = () => {
               <UndoButton />
               <ResetButton />
             </div>
-            
-            <TabsContent value="nodes" className="mt-0">
-              <NodeControls />
-            </TabsContent>
             
             <TabsContent value="rules" className="mt-0">
               <RuleControls />
@@ -169,130 +183,6 @@ const ControlPanel = () => {
         </Card>
       </div>
     </Tabs>
-  );
-};
-
-// Node Controls Component
-const NodeControls = () => {
-  const { state, addPlace, addTransition, connectNodes } = usePetriNet();
-  const [newPlace, setNewPlace] = useState("");
-  const [newTransition, setNewTransition] = useState("");
-  const [fromNode, setFromNode] = useState("");
-  const [toNode, setToNode] = useState("");
-
-  // Get all nodes for the connect dropdown
-  const nodeOptions = state.graph.nodes.map(node => ({
-    label: node.id,
-    value: node.id
-  }));
-
-  const handleAddPlace = () => {
-    if (newPlace) {
-      addPlace(newPlace);
-      setNewPlace("");
-      toast.success(`Added place: ${newPlace}`);
-    } else {
-      toast.error("Please enter a place name");
-    }
-  };
-
-  const handleAddTransition = () => {
-    if (newTransition) {
-      addTransition(newTransition);
-      setNewTransition("");
-      toast.success(`Added transition: ${newTransition}`);
-    } else {
-      toast.error("Please enter a transition name");
-    }
-  };
-
-  const handleConnect = () => {
-    if (fromNode && toNode) {
-      connectNodes(fromNode, toNode);
-      toast.success(`Connected ${fromNode} -> ${toNode}`);
-    } else {
-      toast.error("Please select both from and to nodes");
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      <div>
-        <Label htmlFor="new-place">New Place</Label>
-        <div className="flex items-center gap-2 mt-1">
-          <Input 
-            id="new-place" 
-            placeholder="Place name" 
-            value={newPlace} 
-            onChange={(e) => setNewPlace(e.target.value)} 
-          />
-          <Button size="sm" onClick={handleAddPlace}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add
-          </Button>
-        </div>
-      </div>
-      
-      <div>
-        <Label htmlFor="new-transition">New Transition</Label>
-        <div className="flex items-center gap-2 mt-1">
-          <Input 
-            id="new-transition" 
-            placeholder="Transition name" 
-            value={newTransition} 
-            onChange={(e) => setNewTransition(e.target.value)} 
-          />
-          <Button size="sm" onClick={handleAddTransition}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add
-          </Button>
-        </div>
-      </div>
-      
-      <Separator />
-      
-      <div>
-        <Label>Connect Nodes</Label>
-        <div className="space-y-2 mt-1">
-          <Select value={fromNode} onValueChange={setFromNode}>
-            <SelectTrigger>
-              <SelectValue placeholder="From node" />
-            </SelectTrigger>
-            <SelectContent>
-              {nodeOptions.map(option => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-              {nodeOptions.length === 0 && (
-                <SelectItem value="dummy" disabled>No nodes available</SelectItem>
-              )}
-            </SelectContent>
-          </Select>
-          
-          <Select value={toNode} onValueChange={setToNode}>
-            <SelectTrigger>
-              <SelectValue placeholder="To node" />
-            </SelectTrigger>
-            <SelectContent>
-              {nodeOptions.map(option => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-              {nodeOptions.length === 0 && (
-                <SelectItem value="dummy" disabled>No nodes available</SelectItem>
-              )}
-            </SelectContent>
-          </Select>
-          
-          <Button className="w-full" size="sm" onClick={handleConnect}>
-            <ArrowRight className="h-4 w-4 mr-2" />
-            Connect
-          </Button>
-        </div>
-      </div>
-    </div>
   );
 };
 
@@ -789,7 +679,7 @@ const StartSimulationButton = ({ className = "" }) => {
         toast.success("Simulation started");
       }}
     >
-      <PlayCircle className="h-4 w-4 mr-2" />
+      <Play className="h-4 w-4 mr-2" />
       Start Simulation
     </Button>
   );
@@ -825,7 +715,7 @@ const DownloadLogButton = () => {
         toast.success("Log downloaded");
       }}
     >
-      <Download className="h-4 w-4 mr-2" />
+      <FileText className="h-4 w-4 mr-2" />
       Download CSV
     </Button>
   );
@@ -842,12 +732,10 @@ const StopSimulationButton = ({ className = "" }) => {
         // Don't toast here; feedback provided by animation change
       }}
     >
-      <span className="mr-2">⏹</span>
+      <Square className="h-4 w-4 mr-2" />
       Stop Simulation
     </Button>
   );
 };
 
 export default Index;
-
-// ... keep existing code (Control Panel, NodeControls, RuleControls, FlowControls)
