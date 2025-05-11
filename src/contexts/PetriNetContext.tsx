@@ -22,6 +22,12 @@ interface PetriNetContextType {
   downloadLog: () => void;
   generateBatch: (count: number, useRandom: boolean, selectedRules?: string[], ruleWeights?: { rule: string; weight: number }[]) => void;
   loadStateFromLog: (logEntryId: string) => void;
+  savePetriNet: (name: string) => void;
+  loadPetriNet: (id: string) => void;
+  deletePetriNet: (id: string) => void;
+  renamePetriNet: (id: string, name: string) => void;
+  generateEventLog?: () => void;
+  downloadEventLog?: () => void;
 }
 
 const PetriNetContext = createContext<PetriNetContextType | undefined>(undefined);
@@ -679,7 +685,7 @@ export const PetriNetProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [applyRandomRule, applyRule, addLogEntry]);
   
   // Load state from log entry
-  const loadStateFromLog = (logEntryId: string) => {
+  const loadStateFromLog = useCallback((logEntryId: string) => {
     // Find the index of the log entry
     const logIndex = state.log.findIndex(entry => entry.id === logEntryId);
     
@@ -711,7 +717,45 @@ export const PetriNetProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
       }
     }
-  };
+  }, [state.log, state.history, state.simulationActive, addLogEntry, stopSimulation]);
+  
+  // Save Petri Net
+  const savePetriNet = useCallback((name: string) => {
+    dispatch({
+      type: "SAVE_PETRI_NET",
+      payload: { name }
+    });
+    addLogEntry(`Saved Petri net as "${name}"`);
+  }, [addLogEntry]);
+  
+  // Load Petri Net
+  const loadPetriNet = useCallback((id: string) => {
+    dispatch({
+      type: "LOAD_PETRI_NET",
+      payload: id
+    });
+    const netName = state.savedNets.find(net => net.id === id)?.name;
+    addLogEntry(`Loaded Petri net "${netName || id}"`);
+  }, [state.savedNets, addLogEntry]);
+  
+  // Delete Petri Net
+  const deletePetriNet = useCallback((id: string) => {
+    const netName = state.savedNets.find(net => net.id === id)?.name;
+    dispatch({
+      type: "DELETE_PETRI_NET",
+      payload: id
+    });
+    addLogEntry(`Deleted Petri net "${netName || id}"`);
+  }, [state.savedNets, addLogEntry]);
+  
+  // Rename Petri Net
+  const renamePetriNet = useCallback((id: string, name: string) => {
+    dispatch({
+      type: "RENAME_PETRI_NET",
+      payload: { id, name }
+    });
+    addLogEntry(`Renamed Petri net to "${name}"`);
+  }, [addLogEntry]);
   
   return (
     <PetriNetContext.Provider
@@ -733,7 +777,11 @@ export const PetriNetProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         centerGraph,
         downloadLog,
         generateBatch,
-        loadStateFromLog
+        loadStateFromLog,
+        savePetriNet,
+        loadPetriNet,
+        deletePetriNet,
+        renamePetriNet
       }}
     >
       {children}
