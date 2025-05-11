@@ -4,15 +4,16 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { usePetriNet } from "@/contexts/PetriNetContext";
-import { ArrowLeft, Save, Trash } from "lucide-react";
+import { ArrowLeft, Trash } from "lucide-react";
 
 const SavedNets = () => {
-  const { savedNets, loadPetriNet, deletePetriNet, renamePetriNet } = usePetriNet();
+  const { state, loadPetriNet, deletePetriNet, renamePetriNet } = usePetriNet();
+  const { savedNets } = state;
+  
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
 
@@ -120,7 +121,7 @@ const SavedNets = () => {
                 <CardContent>
                   <div className="text-sm text-muted-foreground mb-4">
                     <p>{net.graph.nodes.length} nodes, {net.graph.edges.length} edges</p>
-                    <p>{net.log.length} log entries</p>
+                    <p>{net.log?.length || 0} log entries</p>
                   </div>
                   <div className="flex space-x-2">
                     <Button variant="default" className="w-full" onClick={() => handleLoad(net.id)}>

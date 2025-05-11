@@ -27,6 +27,8 @@ export interface AnimatingToken {
   target: string;
   progress: number;
   speed: number;
+  sourceId?: string;
+  targetId?: string;
 }
 
 export interface SavedPetriNet {
@@ -34,11 +36,20 @@ export interface SavedPetriNet {
   name: string;
   graph: Graph;
   timestamp: string;
+  log?: LogEntry[];
+}
+
+export interface EventLogPath {
+  sequence: Node[];
+}
+
+export interface EventLog {
+  paths: EventLogPath[];
 }
 
 export interface PetriNetState {
   graph: Graph;
-  history: { graph: Graph }[];
+  history: { graph: Graph; timestamp?: string }[];
   currentHistoryIndex: number;
   log: LogEntry[];
   simulationActive: boolean;
@@ -48,6 +59,8 @@ export interface PetriNetState {
     endPlaceId: string | null;
   };
   savedNets: SavedPetriNet[];
+  currentNetId?: string;
+  eventLog: EventLog;
 }
 
 export type PetriNetAction =
@@ -67,4 +80,33 @@ export type PetriNetAction =
   | { type: "SAVE_PETRI_NET"; payload: { name: string } }
   | { type: "LOAD_PETRI_NET"; payload: string }
   | { type: "DELETE_PETRI_NET"; payload: string }
-  | { type: "RENAME_PETRI_NET"; payload: { id: string; name: string } };
+  | { type: "RENAME_PETRI_NET"; payload: { id: string; name: string } }
+  | { type: "SET_EVENT_LOG"; payload: EventLog };
+
+export interface PetriNetContextType {
+  state: PetriNetState;
+  dispatch: React.Dispatch<PetriNetAction>;
+  addPlace: (id: string) => void;
+  addTransition: (id: string) => void;
+  connectNodes: (source: string, target: string) => void;
+  addToken: (placeId: string) => void;
+  removeToken: (placeId: string) => void;
+  applyRule: (rule: string, targetId: string, endNodeId?: string) => void;
+  applyRandomRule: () => void;
+  setTokenFlow: (startPlaceId: string, endPlaceId: string) => void;
+  startSimulation: () => void;
+  stopSimulation: () => void;
+  undo: () => void;
+  reset: () => void;
+  centerGraph: () => void;
+  downloadLog: () => void;
+  generateBatch: (count: number, useRandom: boolean, selectedRules?: string[], ruleWeights?: { rule: string; weight: number }[]) => void;
+  loadStateFromLog: (logEntryId: string) => void;
+  savePetriNet: (name: string) => void;
+  loadPetriNet: (id: string) => void;
+  deletePetriNet: (id: string) => void;
+  renamePetriNet: (id: string, name: string) => void;
+  generateEventLog?: () => void;
+  downloadEventLog?: () => void;
+  savedNets: SavedPetriNet[];
+}
