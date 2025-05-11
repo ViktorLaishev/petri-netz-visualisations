@@ -1,8 +1,28 @@
-
 import React, { createContext, useContext, useReducer, useEffect, useCallback } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { petriNetReducer, initialState } from "@/reducers/PetriNetReducer";
-import { PetriNetState, PetriNetAction, Node, Edge, LogEntry, PetriNetContextType, EventLog } from "@/types/PetriNet";
+import { PetriNetState, PetriNetAction, Node, Edge } from "@/types/PetriNet";
+
+interface PetriNetContextType {
+  state: PetriNetState;
+  dispatch: React.Dispatch<PetriNetAction>;
+  addPlace: (id: string) => void;
+  addTransition: (id: string) => void;
+  connectNodes: (source: string, target: string) => void;
+  addToken: (placeId: string) => void;
+  removeToken: (placeId: string) => void;
+  applyRule: (rule: string, targetId: string, endNodeId?: string) => void;
+  applyRandomRule: () => void;
+  setTokenFlow: (startPlaceId: string, endPlaceId: string) => void;
+  startSimulation: () => void;
+  stopSimulation: () => void;
+  undo: () => void;
+  reset: () => void;
+  centerGraph: () => void;
+  downloadLog: () => void;
+  generateBatch: (count: number, useRandom: boolean, selectedRules?: string[], ruleWeights?: { rule: string; weight: number }[]) => void;
+  loadStateFromLog: (logEntryId: string) => void;
+}
 
 const PetriNetContext = createContext<PetriNetContextType | undefined>(undefined);
 
@@ -529,6 +549,7 @@ export const PetriNetProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   
   // Center the graph
   const centerGraph = useCallback(() => {
+    // Dispatch a custom event that the graph component will listen for
     window.dispatchEvent(new CustomEvent("petrinetCenterGraph"));
   }, []);
   
@@ -656,14 +677,15 @@ export const PetriNetProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     
     addLogEntry(`Generated batch of ${count} rules`);
   }, [applyRandomRule, applyRule, addLogEntry]);
-  
+
   // Load state from log entry
-  const loadStateFromLog = useCallback((logEntryId: string) => {
+  const loadStateFromLog = (logEntryId: string) => {
     // Find the index of the log entry
     const logIndex = state.log.findIndex(entry => entry.id === logEntryId);
     
     if (logIndex >= 0) {
-      // Get the corresponding history state
+      // Get the corresponding history state (which is one less than log entry index
+      // because first log entry happens after the first history state)
       const historyIndex = Math.min(logIndex, state.history.length - 1);
       
       if (historyIndex >= 0 && historyIndex < state.history.length) {
@@ -671,6 +693,7 @@ export const PetriNetProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         const historicalState = state.history[historyIndex];
         
         // Update the current graph to match the historical state
+        // but keep the rest of the current state intact
         dispatch({
           type: 'LOAD_HISTORICAL_STATE',
           payload: {
@@ -688,100 +711,7 @@ export const PetriNetProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
       }
     }
-  }, [state.log, state.history, state.simulationActive, addLogEntry, stopSimulation]);
-  
-  // Save Petri Net
-  const savePetriNet = useCallback((name: string) => {
-    dispatch({
-      type: "SAVE_PETRI_NET",
-      payload: { name }
-    });
-    addLogEntry(`Saved Petri net as "${name}"`);
-  }, [addLogEntry]);
-  
-  // Load Petri Net
-  const loadPetriNet = useCallback((id: string) => {
-    dispatch({
-      type: "LOAD_PETRI_NET",
-      payload: id
-    });
-    const netName = state.savedNets.find(net => net.id === id)?.name;
-    addLogEntry(`Loaded Petri net "${netName || id}"`);
-  }, [state.savedNets, addLogEntry]);
-  
-  // Delete Petri Net
-  const deletePetriNet = useCallback((id: string) => {
-    const netName = state.savedNets.find(net => net.id === id)?.name;
-    dispatch({
-      type: "DELETE_PETRI_NET",
-      payload: id
-    });
-    addLogEntry(`Deleted Petri net "${netName || id}"`);
-  }, [state.savedNets, addLogEntry]);
-  
-  // Rename Petri Net
-  const renamePetriNet = useCallback((id: string, name: string) => {
-    dispatch({
-      type: "RENAME_PETRI_NET",
-      payload: { id, name }
-    });
-    addLogEntry(`Renamed Petri net to "${name}"`);
-  }, [addLogEntry]);
-  
-  // Generate event log
-  const generateEventLog = useCallback(() => {
-    // Simple implementation - create a basic event log
-    const eventLog: EventLog = {
-      paths: [
-        {
-          sequence: state.graph.nodes.filter(node => node.type === "place")
-        }
-      ]
-    };
-    
-    dispatch({
-      type: "SET_EVENT_LOG",
-      payload: eventLog
-    });
-    
-    addLogEntry("Generated event log");
-    
-    return Promise.resolve();
-  }, [state.graph.nodes, addLogEntry]);
-  
-  // Download event log as CSV
-  const downloadEventLog = useCallback(() => {
-    if (state.eventLog.paths.length === 0) {
-      console.error("No event log data to download");
-      return;
-    }
-    
-    // Create CSV content
-    const headers = ["Path ID", "Sequence", "Length", "Start", "End"];
-    const rows = state.eventLog.paths.map((path, index) => [
-      index + 1,
-      path.sequence.map(node => node.id).join(" → "),
-      path.sequence.length,
-      path.sequence[0]?.id || "N/A",
-      path.sequence[path.sequence.length - 1]?.id || "N/A"
-    ]);
-    
-    const csvContent = [
-      headers.join(","),
-      ...rows.map(row => row.join(","))
-    ].join("\n");
-    
-    // Create download link
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `petri-net-event-log-${new Date().toISOString().slice(0, 10)}.csv`);
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  }, [state.eventLog]);
+  };
   
   return (
     <PetriNetContext.Provider
@@ -803,14 +733,7 @@ export const PetriNetProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         centerGraph,
         downloadLog,
         generateBatch,
-        loadStateFromLog,
-        savePetriNet,
-        loadPetriNet,
-        deletePetriNet,
-        renamePetriNet,
-        generateEventLog,
-        downloadEventLog,
-        savedNets: state.savedNets
+        loadStateFromLog
       }}
     >
       {children}

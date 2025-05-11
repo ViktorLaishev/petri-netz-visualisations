@@ -8,7 +8,7 @@ const EventLogTable: React.FC = () => {
   const { state } = usePetriNet();
   const { eventLog } = state;
 
-  if (!eventLog || eventLog.paths.length === 0) {
+  if (eventLog.paths.length === 0) {
     return (
       <div className="text-center py-8 text-slate-500 dark:text-slate-400">
         No event paths generated yet. Please generate the event log first.
