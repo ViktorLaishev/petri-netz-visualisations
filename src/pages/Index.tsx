@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -11,7 +10,10 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { AlertCircle, PlayCircle, Undo, RefreshCw, Plus, ArrowRight, Download, ZoomIn, FileText, Save, FolderOpen } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { AlertCircle, PlayCircle, Undo, RefreshCw, Plus, ArrowRight, Download, ZoomIn, FileText, Save, FolderOpen, HelpCircle } from "lucide-react";
 import { toast } from "sonner";
 import PetriNetGraph from "@/components/PetriNetGraph";
 import { PetriNetProvider, usePetriNet } from "@/contexts/PetriNetContext";
@@ -526,15 +528,74 @@ const FlowControls = () => {
   );
 };
 
-// Batch Controls Component
+// Batch Controls Component with weighted randomization
 const BatchControls = () => {
   const { generateBatch } = usePetriNet();
   const [count, setCount] = useState(1);
   const [useRandom, setUseRandom] = useState(true);
   const [selectedRules, setSelectedRules] = useState<string[]>([]);
+  const [useWeights, setUseWeights] = useState(false);
+  const [ruleWeights, setRuleWeights] = useState<{ rule: string; weight: number }[]>([]);
+  
+  // List of all available rules
+  const availableRules = [
+    "Abstraction ψA", 
+    "Linear Transition ψT", 
+    "Linear Place ψP", 
+    "Dual Abstraction ψD"
+  ];
 
+  // Calculate total weight assigned
+  const totalWeight = ruleWeights.reduce((acc, rw) => acc + rw.weight, 0);
+  
+  // Calculate remaining weight for unassigned rules
+  const assignedRulesCount = ruleWeights.length;
+  const unassignedRulesCount = selectedRules.length - assignedRulesCount;
+  const remainingWeight = Math.max(0, 100 - totalWeight);
+  const weightPerUnassignedRule = unassignedRulesCount > 0 ? (remainingWeight / unassignedRulesCount) : 0;
+
+  // Handle rule selection
+  const handleRuleSelection = (rule: string, checked: boolean) => {
+    if (checked) {
+      setSelectedRules(prev => [...prev, rule]);
+    } else {
+      setSelectedRules(prev => prev.filter(r => r !== rule));
+      // Also remove any weights assigned to this rule
+      setRuleWeights(prev => prev.filter(rw => rw.rule !== rule));
+    }
+  };
+
+  // Handle weight change
+  const handleWeightChange = (rule: string, weight: number) => {
+    const existingWeightIndex = ruleWeights.findIndex(rw => rw.rule === rule);
+    
+    if (existingWeightIndex >= 0) {
+      // Update existing weight
+      setRuleWeights(prev => 
+        prev.map((rw, idx) => 
+          idx === existingWeightIndex ? { ...rw, weight } : rw
+        )
+      );
+    } else {
+      // Add new weight
+      setRuleWeights(prev => [...prev, { rule, weight }]);
+    }
+  };
+
+  // Reset weight for a rule
+  const resetWeight = (rule: string) => {
+    setRuleWeights(prev => prev.filter(rw => rw.rule !== rule));
+  };
+
+  // Get the weight for a rule
+  const getRuleWeight = (rule: string): number | undefined => {
+    const weightEntry = ruleWeights.find(rw => rw.rule === rule);
+    return weightEntry?.weight;
+  };
+
+  // Handle generate batch
   const handleGenerate = () => {
-    generateBatch(count, useRandom, selectedRules);
+    generateBatch(count, useRandom, selectedRules, useWeights ? ruleWeights : undefined);
     toast.success(`Generated batch with ${count} rules`);
   };
 
@@ -561,29 +622,109 @@ const BatchControls = () => {
         <Label htmlFor="random-rules">Use random rules</Label>
       </div>
       
-      <div>
-        <Label>Select Rules</Label>
-        <ScrollArea className="h-24 border rounded-md p-2 mt-1">
-          <div className="space-y-2">
-            {["Abstraction ψA", "Linear Transition ψT", "Linear Place ψP", "Dual Abstraction ψD"].map(rule => (
-              <div key={rule} className="flex items-center space-x-2">
-                <Checkbox 
-                  id={`rule-${rule}`} 
-                  checked={selectedRules.includes(rule)}
-                  onCheckedChange={(checked) => {
-                    if (checked) {
-                      setSelectedRules(prev => [...prev, rule]);
-                    } else {
-                      setSelectedRules(prev => prev.filter(r => r !== rule));
-                    }
-                  }}
-                />
-                <Label htmlFor={`rule-${rule}`}>{rule}</Label>
+      {!useRandom && (
+        <>
+          <div>
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium mb-1">Select Rules</Label>
+              {selectedRules.length > 0 && (
+                <div className="flex items-center space-x-2">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger className="text-muted-foreground">
+                        <HelpCircle size={14} />
+                      </TooltipTrigger>
+                      <TooltipContent className="w-72 p-2">
+                        <p>Set the probability weight for each rule. The total weight should not exceed 100%. 
+                        Any remaining weight will be distributed evenly among rules without specific weights.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  <div className="flex items-center space-x-2">
+                    <Switch 
+                      id="use-weights" 
+                      checked={useWeights}
+                      onCheckedChange={setUseWeights}
+                    />
+                    <Label htmlFor="use-weights" className="text-xs">Use weights</Label>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <ScrollArea className="h-48 border rounded-md p-2 mt-1">
+              <div className="space-y-3 pr-3">
+                {availableRules.map(rule => (
+                  <div key={rule} className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox 
+                          id={`rule-${rule}`} 
+                          checked={selectedRules.includes(rule)}
+                          onCheckedChange={(checked) => handleRuleSelection(rule, !!checked)}
+                        />
+                        <Label htmlFor={`rule-${rule}`} className="text-sm">{rule}</Label>
+                      </div>
+                      {selectedRules.includes(rule) && useWeights && (
+                        <div className="text-xs text-muted-foreground">
+                          {getRuleWeight(rule) !== undefined ? (
+                            <span>
+                              {getRuleWeight(rule)}%
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-5 px-1 ml-1" 
+                                onClick={() => resetWeight(rule)}
+                              >
+                                ×
+                              </Button>
+                            </span>
+                          ) : (
+                            <span>{weightPerUnassignedRule.toFixed(1)}% (auto)</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {selectedRules.includes(rule) && useWeights && (
+                      <div className="pl-6 pr-2">
+                        <Slider
+                          value={[getRuleWeight(rule) || 0]}
+                          min={0}
+                          max={100}
+                          step={5}
+                          onValueChange={(values) => handleWeightChange(rule, values[0])}
+                        />
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
-            ))}
+            </ScrollArea>
+            
+            {useWeights && selectedRules.length > 0 && (
+              <div className="mt-2 space-y-1">
+                <div className="flex items-center justify-between text-sm">
+                  <span>Total assigned:</span>
+                  <span className={totalWeight > 100 ? "text-red-500 font-medium" : "font-medium"}>
+                    {totalWeight}%
+                  </span>
+                </div>
+                {totalWeight > 100 && (
+                  <div className="text-xs text-red-500">
+                    Total exceeds 100%. Weights will be normalized.
+                  </div>
+                )}
+                {unassignedRulesCount > 0 && (
+                  <div className="text-xs text-muted-foreground">
+                    {remainingWeight}% will be distributed among {unassignedRulesCount} unweighted rule(s)
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-        </ScrollArea>
-      </div>
+        </>
+      )}
       
       <Button 
         className="w-full" 
@@ -708,3 +849,5 @@ const StopSimulationButton = ({ className = "" }) => {
 };
 
 export default Index;
+
+// ... keep existing code (Control Panel, NodeControls, RuleControls, FlowControls)
