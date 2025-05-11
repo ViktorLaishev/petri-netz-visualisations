@@ -70,7 +70,7 @@ interface PetriNetContextType {
   addPlace: (id: string) => void;
   addTransition: (id: string) => void;
   connectNodes: (source: string, target: string) => void;
-  applyRule: (rule: string, target: string) => void;
+  applyRule: (rule: string, target: string, endNodeId?: string) => void;
   applyRandomRule: () => void;
   generateBatch: (count: number, useRandom: boolean, selectedRules: string[]) => void;
   setTokenFlow: (start: string, end: string) => void;
@@ -127,13 +127,20 @@ const applyAbstractionRule = (graph: Graph, targetId: string): Graph => {
   return newGraph;
 };
 
-const applyLinearTransitionRule = (graph: Graph, targetId: string): Graph => {
-  // Implementation of linear dependent transition rule (ψT)
+const applyLinearTransitionRule = (graph: Graph, targetId: string, endNodeId?: string): Graph => {
+  // Modified implementation of linear transition rule (ψT) to connect between start and end
   const newGraph = { ...graph };
   
-  // Get target place node
+  // Get target place node (start node)
   const targetNode = newGraph.nodes.find(node => node.id === targetId);
   if (!targetNode || targetNode.type !== 'place') return newGraph;
+  
+  // Get end node if specified, otherwise use default behavior
+  let endNode;
+  if (endNodeId) {
+    endNode = newGraph.nodes.find(node => node.id === endNodeId);
+    if (!endNode || endNode.type !== 'place') return newGraph;
+  }
   
   // Create new transition and place
   const transId = `T${newGraph.nodes.filter(n => n.type === 'transition').length}`;
@@ -146,36 +153,46 @@ const applyLinearTransitionRule = (graph: Graph, targetId: string): Graph => {
     { id: placeId, type: 'place', tokens: 0 }
   ];
   
-  // Connect target to new transition, and new transition to new place
+  // Connect start to new transition, and new transition to new place
   newGraph.edges = [
     ...newGraph.edges, 
     { source: targetId, target: transId },
     { source: transId, target: placeId }
   ];
   
-  // Find existing transitions that the target place connects to
-  const connectedTransitions = newGraph.edges
-    .filter(e => e.source === targetId && 
-           newGraph.nodes.find(n => n.id === e.target)?.type === 'transition')
-    .map(e => e.target);
-  
-  // Find places that those transitions output to
-  const outputPlaces = new Set<string>();
-  connectedTransitions.forEach(transId => {
-    newGraph.edges
-      .filter(e => e.source === transId)
-      .forEach(e => outputPlaces.add(e.target));
-  });
-  
-  // Connect new place to the output places (via new transitions)
-  outputPlaces.forEach(outPlaceId => {
-    const newTransId = `T${newGraph.nodes.filter(n => n.type === 'transition').length}`;
-    newGraph.nodes.push({ id: newTransId, type: 'transition' });
+  // If end node is specified, connect the new place to it
+  if (endNode) {
+    const endTransId = `T${newGraph.nodes.filter(n => n.type === 'transition').length}`;
+    newGraph.nodes.push({ id: endTransId, type: 'transition' });
     newGraph.edges.push(
-      { source: placeId, target: newTransId },
-      { source: newTransId, target: outPlaceId }
+      { source: placeId, target: endTransId },
+      { source: endTransId, target: endNodeId }
     );
-  });
+  } else {
+    // Find existing transitions that the target place connects to
+    const connectedTransitions = newGraph.edges
+      .filter(e => e.source === targetId && 
+             newGraph.nodes.find(n => n.id === e.target)?.type === 'transition')
+      .map(e => e.target);
+    
+    // Find places that those transitions output to
+    const outputPlaces = new Set<string>();
+    connectedTransitions.forEach(transId => {
+      newGraph.edges
+        .filter(e => e.source === transId)
+        .forEach(e => outputPlaces.add(e.target));
+    });
+    
+    // Connect new place to the output places (via new transitions)
+    outputPlaces.forEach(outPlaceId => {
+      const newTransId = `T${newGraph.nodes.filter(n => n.type === 'transition').length}`;
+      newGraph.nodes.push({ id: newTransId, type: 'transition' });
+      newGraph.edges.push(
+        { source: placeId, target: newTransId },
+        { source: newTransId, target: outPlaceId }
+      );
+    });
+  }
   
   return newGraph;
 };
@@ -222,13 +239,20 @@ const applyLinearPlaceRule = (graph: Graph, targetId: string): Graph => {
   return newGraph;
 };
 
-const applyDualAbstractionRule = (graph: Graph, targetId: string): Graph => {
-  // Implementation of dual abstraction rule (ψD)
+const applyDualAbstractionRule = (graph: Graph, targetId: string, endNodeId?: string): Graph => {
+  // Modified implementation of dual abstraction rule (ψD) to connect between start and end
   const newGraph = { ...graph };
   
-  // Get target transition node
+  // Get target transition node (start node)
   const targetNode = newGraph.nodes.find(node => node.id === targetId);
   if (!targetNode || targetNode.type !== 'transition') return newGraph;
+  
+  // Get end node if specified, otherwise use default behavior
+  let endNode;
+  if (endNodeId) {
+    endNode = newGraph.nodes.find(node => node.id === endNodeId);
+    if (!endNode || endNode.type !== 'transition') return newGraph;
+  }
   
   // Create two new places and a transition
   const place1Id = `P${newGraph.nodes.filter(n => n.type === 'place').length}`;
@@ -243,32 +267,45 @@ const applyDualAbstractionRule = (graph: Graph, targetId: string): Graph => {
     { id: transId, type: 'transition' }
   ];
   
-  // Find outputs of target transition (places)
-  const outputs = newGraph.edges
-    .filter(e => e.source === targetId)
-    .map(e => e.target);
-  
-  // Remove direct edges from target to its outputs
-  newGraph.edges = newGraph.edges.filter(e => !(e.source === targetId && outputs.includes(e.target)));
-  
   // Add edges for the dual abstraction pattern
   newGraph.edges = [
     ...newGraph.edges,
     { source: targetId, target: place1Id },  // target -> place1
     { source: place1Id, target: transId },   // place1 -> new transition
     { source: transId, target: place2Id },   // new transition -> place2
-    ...outputs.map(output => ({ source: place2Id, target: output })) // place2 -> original outputs (must be transitions)
   ];
+  
+  if (endNode) {
+    // Connect directly to specified end transition
+    newGraph.edges.push({ source: place2Id, target: endNodeId });
+  } else {
+    // Find outputs of target transition (places)
+    const outputs = newGraph.edges
+      .filter(e => e.source === targetId)
+      .map(e => e.target);
+    
+    // Remove direct edges from target to its outputs
+    newGraph.edges = newGraph.edges.filter(e => !(e.source === targetId && outputs.includes(e.target)));
+    
+    // Connect place2 to original outputs
+    outputs.forEach(output => {
+      newGraph.edges.push({ source: place2Id, target: output });
+    });
+  }
   
   return newGraph;
 };
 
-// Map rules to their implementations
-const rulesMap: Record<string, { fn: (graph: Graph, targetId: string) => Graph, targetType: NodeType }> = {
+// Map rules to their implementations - updated to include endNodeId
+const rulesMap: Record<string, { 
+  fn: (graph: Graph, targetId: string, endNodeId?: string) => Graph, 
+  targetType: NodeType,
+  endNodeType?: NodeType 
+}> = {
   'Abstraction ψA': { fn: applyAbstractionRule, targetType: 'transition' },
-  'Linear Transition ψT': { fn: applyLinearTransitionRule, targetType: 'place' },
+  'Linear Transition ψT': { fn: applyLinearTransitionRule, targetType: 'place', endNodeType: 'place' },
   'Linear Place ψP': { fn: applyLinearPlaceRule, targetType: 'transition' },
-  'Dual Abstraction ψD': { fn: applyDualAbstractionRule, targetType: 'transition' },
+  'Dual Abstraction ψD': { fn: applyDualAbstractionRule, targetType: 'transition', endNodeType: 'transition' },
 };
 
 // Create initial graph
@@ -293,7 +330,7 @@ type ActionType =
   | { type: 'ADD_PLACE'; id: string }
   | { type: 'ADD_TRANSITION'; id: string }
   | { type: 'CONNECT_NODES'; source: string; target: string }
-  | { type: 'APPLY_RULE'; rule: string; target: string }
+  | { type: 'APPLY_RULE'; rule: string; target: string; endNodeId?: string }
   | { type: 'APPLY_RANDOM_RULE' }
   | { type: 'GENERATE_BATCH'; count: number; useRandom: boolean; selectedRules: string[] }
   | { type: 'SET_TOKEN_FLOW'; start: string; end: string }
@@ -500,7 +537,7 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
     }
       
     case 'APPLY_RULE': {
-      const { rule, target } = action;
+      const { rule, target, endNodeId } = action;
       const ruleInfo = rulesMap[rule];
       
       if (!ruleInfo) {
@@ -520,13 +557,27 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
         return state;
       }
       
+      // Check end node if specified and if the rule supports it
+      if (endNodeId && ruleInfo.endNodeType) {
+        const endNode = state.graph.nodes.find(n => n.id === endNodeId);
+        if (!endNode) {
+          toast.error(`End node ${endNodeId} not found`);
+          return state;
+        }
+        
+        if (endNode.type !== ruleInfo.endNodeType) {
+          toast.error(`Rule ${rule} requires a ${ruleInfo.endNodeType} end node, but ${endNodeId} is a ${endNode.type}`);
+          return state;
+        }
+      }
+      
       let newState = pushHistory(state);
-      const newGraph = ruleInfo.fn(newState.graph, target);
+      const newGraph = ruleInfo.fn(newState.graph, target, endNodeId);
       
       newState = addLogEntry({
         ...newState,
         graph: newGraph
-      }, `Applied ${rule} on ${target}`);
+      }, `Applied ${rule} on ${target}${endNodeId ? ` to ${endNodeId}` : ''}`);
       
       saveStateToStorage(newState);
       return newState;
@@ -950,8 +1001,8 @@ export const PetriNetProvider: React.FC<{ children: ReactNode }> = ({ children }
     addTransition: (id: string) => dispatch({ type: 'ADD_TRANSITION', id }),
     connectNodes: (source: string, target: string) => 
       dispatch({ type: 'CONNECT_NODES', source, target }),
-    applyRule: (rule: string, target: string) => 
-      dispatch({ type: 'APPLY_RULE', rule, target }),
+    applyRule: (rule: string, target: string, endNodeId?: string) => 
+      dispatch({ type: 'APPLY_RULE', rule, target, endNodeId }),
     applyRandomRule: () => dispatch({ type: 'APPLY_RANDOM_RULE' }),
     generateBatch: (count: number, useRandom: boolean, selectedRules: string[]) => 
       dispatch({ type: 'GENERATE_BATCH', count, useRandom, selectedRules }),
