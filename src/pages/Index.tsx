@@ -354,7 +354,7 @@ const RuleControls = () => {
   const handleApplyRule = () => {
     if (selectedRule && targetNode) {
       // Only include endNode if the rule supports it and an end node is selected
-      const endNodeToUse = supportsEndNode() && endNode ? endNode : undefined;
+      const endNodeToUse = supportsEndNode() && endNode && endNode !== "none" ? endNode : undefined;
       applyRule(selectedRule, targetNode, endNodeToUse);
       toast.success(`Applied ${selectedRule} on ${targetNode}${endNodeToUse ? ` to ${endNodeToUse}` : ''}`);
     } else {
