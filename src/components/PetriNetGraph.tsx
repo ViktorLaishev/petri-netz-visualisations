@@ -93,6 +93,16 @@ const PetriNetGraph: React.FC = () => {
               'background-color': '#f43f5e',
               'color': 'white'
             }
+          },
+          {
+            selector: '.newly-added',
+            style: {
+              'background-color': '#f59e0b',
+              'color': 'black',
+              'border-width': 3,
+              'border-color': '#f59e0b',
+              'border-style': 'dashed'
+            }
           }
         ],
         layout: {
@@ -105,6 +115,22 @@ const PetriNetGraph: React.FC = () => {
         minZoom: 0.5,
         maxZoom: 2
       });
+      
+      // Add interaction for better UX
+      if (cyInstanceRef.current) {
+        // Highlight connected edges when hovering over nodes
+        cyInstanceRef.current.on('mouseover', 'node', function(e: any) {
+          const node = e.target;
+          const connectedEdges = node.connectedEdges();
+          connectedEdges.addClass('active-path');
+        });
+        
+        cyInstanceRef.current.on('mouseout', 'node', function(e: any) {
+          const node = e.target;
+          const connectedEdges = node.connectedEdges();
+          connectedEdges.removeClass('active-path');
+        });
+      }
       
       return () => {
         if (cyInstanceRef.current) {
@@ -156,8 +182,45 @@ const PetriNetGraph: React.FC = () => {
         cy.fit(undefined, 50);
         cy.center();
       }
+
+      // Highlight the most recently added elements
+      const lastHistoryItem = state.history[state.history.length - 1];
+      if (lastHistoryItem) {
+        // Find nodes that exist in current graph but not in previous
+        const prevNodeIds = new Set(lastHistoryItem.graph.nodes.map(n => n.id));
+        const newNodes = graph.nodes.filter(n => !prevNodeIds.has(n.id));
+        
+        // Highlight new nodes
+        newNodes.forEach(node => {
+          const cyNode = cy.getElementById(node.id);
+          if (cyNode) {
+            cyNode.addClass('newly-added');
+            setTimeout(() => {
+              cyNode.removeClass('newly-added');
+            }, 3000); // Remove highlight after 3 seconds
+          }
+        });
+        
+        // Highlight new edges
+        const prevEdgeIds = new Set(
+          lastHistoryItem.graph.edges.map(e => `${e.source}-${e.target}`)
+        );
+        
+        graph.edges.forEach(edge => {
+          const edgeId = `${edge.source}-${edge.target}`;
+          if (!prevEdgeIds.has(edgeId)) {
+            const cyEdge = cy.getElementById(edgeId);
+            if (cyEdge) {
+              cyEdge.addClass('active-path');
+              setTimeout(() => {
+                cyEdge.removeClass('active-path');
+              }, 3000); // Remove highlight after 3 seconds
+            }
+          }
+        });
+      }
     }
-  }, [graph.nodes, graph.edges]);
+  }, [graph.nodes, graph.edges, state.history]);
   
   // Handle animation
   useEffect(() => {
@@ -194,15 +257,26 @@ const PetriNetGraph: React.FC = () => {
             });
           }
 
+          // Find path between source and target
+          const path = findShortestPath(sourceId, targetId, graph);
+          
           // Highlight path
-          const edgesBySource = graph.edges.filter(e => e.source === sourceId);
-          const connectedTransition = edgesBySource.length > 0 ? edgesBySource[0].target : null;
+          if (path && path.length > 1) {
+            for (let i = 0; i < path.length - 1; i++) {
+              const edgeId = `${path[i]}-${path[i+1]}`;
+              cy.getElementById(edgeId).addClass('active-path');
+            }
+          } else {
+            // Fallback to direct edge highlighting
+            const edgesBySource = graph.edges.filter(e => e.source === sourceId);
+            const connectedTransition = edgesBySource.length > 0 ? edgesBySource[0].target : null;
 
-          if (connectedTransition) {
-            cy.getElementById(`${sourceId}-${connectedTransition}`).addClass('active-path');
-            const edgesToTarget = graph.edges.filter(e => e.source === connectedTransition && e.target === targetId);
-            if (edgesToTarget.length > 0) {
-              cy.getElementById(`${connectedTransition}-${targetId}`).addClass('active-path');
+            if (connectedTransition) {
+              cy.getElementById(`${sourceId}-${connectedTransition}`).addClass('active-path');
+              const edgesToTarget = graph.edges.filter(e => e.source === connectedTransition && e.target === targetId);
+              if (edgesToTarget.length > 0) {
+                cy.getElementById(`${connectedTransition}-${targetId}`).addClass('active-path');
+              }
             }
           }
         }
@@ -213,28 +287,54 @@ const PetriNetGraph: React.FC = () => {
         cy.elements('.active-path').removeClass('active-path');
       }
     }
-  }, [simulationActive, animatingTokens, graph.edges]);
+  }, [simulationActive, animatingTokens, graph.edges, graph]);
+  
+  // Helper function to find shortest path in the graph
+  const findShortestPath = (startId: string, endId: string, graph: { nodes: any[], edges: any[] }) => {
+    // Simple BFS to find shortest path
+    const visited = new Set<string>();
+    const queue: { id: string, path: string[] }[] = [{ id: startId, path: [startId] }];
+    
+    while (queue.length > 0) {
+      const { id, path } = queue.shift()!;
+      
+      if (id === endId) {
+        return path;
+      }
+      
+      if (!visited.has(id)) {
+        visited.add(id);
+        
+        // Find all neighbors
+        const outgoingEdges = graph.edges.filter(e => e.source === id);
+        for (const edge of outgoingEdges) {
+          if (!visited.has(edge.target)) {
+            queue.push({ id: edge.target, path: [...path, edge.target] });
+          }
+        }
+      }
+    }
+    
+    return null; // No path found
+  };
   
   // Add effect to handle centerGraph command
   useEffect(() => {
-    // Expose the cytoscape instance to the window for external access
-    if (cyInstanceRef.current) {
-      // Create a method to center and fit the graph
-      const centerAndFitGraph = () => {
-        if (cyInstanceRef.current) {
-          cyInstanceRef.current.fit(undefined, 50);
-          cyInstanceRef.current.center();
-        }
-      };
-      
-      // Add an event listener for the centerGraph action
-      window.addEventListener('petrinetCenterGraph', centerAndFitGraph);
-      
-      // Clean up the event listener
-      return () => {
-        window.removeEventListener('petrinetCenterGraph', centerAndFitGraph);
-      };
-    }
+    // Create a method to center and fit the graph
+    const centerAndFitGraph = () => {
+      if (cyInstanceRef.current) {
+        cyInstanceRef.current.fit(undefined, 50);
+        cyInstanceRef.current.center();
+      }
+    };
+    
+    // Add an event listener for the centerGraph action
+    window.addEventListener('petrinetCenterGraph', centerAndFitGraph);
+    
+    // Clean up the event listener
+    return () => {
+      window.removeEventListener('petrinetCenterGraph', centerAndFitGraph);
+    };
   }, []);
   
   return (
