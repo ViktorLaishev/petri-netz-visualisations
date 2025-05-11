@@ -1,42 +1,14 @@
-import React, { useRef, useEffect, useState } from "react";
+
+import React, { useRef, useEffect } from "react";
 import { usePetriNet } from "@/contexts/PetriNetContext";
 import cytoscape from "cytoscape";
-import { Maximize, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
-
-interface NodeInfoPopup {
-  visible: boolean;
-  x: number;
-  y: number;
-  data: {
-    id: string;
-    type: string;
-    tokens?: number;
-    incomingEdges?: number;
-    outgoingEdges?: number;
-    created?: string;
-    source?: string;
-    target?: string;
-    rule?: string;
-  };
-}
 
 const PetriNetGraph: React.FC = () => {
-  const { state } = usePetriNet();
+  const { state, stopSimulation } = usePetriNet();
   const { graph, simulationActive, animatingTokens } = state;
   
   const cyRef = useRef<HTMLDivElement>(null);
   const cyInstanceRef = useRef<any>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [nodeInfo, setNodeInfo] = useState<NodeInfoPopup>({
-    visible: false,
-    x: 0,
-    y: 0,
-    data: {
-      id: "",
-      type: "",
-    }
-  });
   
   // Initialize cytoscape instance
   useEffect(() => {
@@ -158,94 +130,6 @@ const PetriNetGraph: React.FC = () => {
           const connectedEdges = node.connectedEdges();
           connectedEdges.removeClass('active-path');
         });
-        
-        // Show node info when clicking on a node
-        cyInstanceRef.current.on('click', 'node', function(e: any) {
-          const node = e.target;
-          const position = e.renderedPosition;
-          const nodeData = node.data();
-          const nodeType = nodeData.type || (node.hasClass('place') ? 'place' : 'transition');
-          
-          // Find connected edges
-          const incomingEdges = node.incomers().length;
-          const outgoingEdges = node.outgoers().length;
-          
-          // Look up the creation timestamp from history
-          let created = "Unknown";
-          for (let i = 0; i < state.history.length; i++) {
-            const historyItem = state.history[i];
-            const found = historyItem.graph.nodes.find((n: any) => n.id === nodeData.id);
-            if (found) {
-              created = new Date(historyItem.timestamp).toLocaleString();
-              break;
-            }
-          }
-          
-          setNodeInfo({
-            visible: true,
-            x: position.x,
-            y: position.y,
-            data: {
-              id: nodeData.id,
-              type: nodeType,
-              tokens: nodeData.tokens,
-              incomingEdges,
-              outgoingEdges,
-              created,
-            }
-          });
-        });
-        
-        // Show edge info when clicking on an edge
-        cyInstanceRef.current.on('click', 'edge', function(e: any) {
-          const edge = e.target;
-          const position = e.renderedPosition;
-          const edgeData = edge.data();
-          
-          // Find the rule that created this edge
-          let rule = "Unknown";
-          for (let i = 0; i < state.log.length; i++) {
-            const logEntry = state.log[i];
-            if (logEntry.action.includes(edgeData.source) && logEntry.action.includes(edgeData.target)) {
-              rule = logEntry.action;
-              break;
-            }
-          }
-          
-          // Find the creation timestamp from history
-          let created = "Unknown";
-          for (let i = 0; i < state.history.length; i++) {
-            const historyItem = state.history[i];
-            const found = historyItem.graph.edges.find(
-              (e: any) => e.source === edgeData.source && e.target === edgeData.target
-            );
-            if (found) {
-              created = new Date(historyItem.timestamp).toLocaleString();
-              break;
-            }
-          }
-          
-          setNodeInfo({
-            visible: true,
-            x: position.x,
-            y: position.y,
-            data: {
-              id: edgeData.id,
-              type: 'edge',
-              source: edgeData.source,
-              target: edgeData.target,
-              rule,
-              created,
-            }
-          });
-        });
-        
-        // Hide popup when clicking on the background
-        cyInstanceRef.current.on('click', function(e: any) {
-          if (e.target === cyInstanceRef.current) {
-            setNodeInfo({ ...nodeInfo, visible: false });
-          }
-        });
       }
       
       return () => {
@@ -267,8 +151,7 @@ const PetriNetGraph: React.FC = () => {
           data: { 
             id: node.id, 
             label: node.id,
-            tokens: node.tokens || 0,
-            type: node.type
+            tokens: node.tokens || 0
           },
           classes: [
             node.type,
@@ -454,97 +337,11 @@ const PetriNetGraph: React.FC = () => {
     };
   }, []);
   
-  // Toggle fullscreen mode
-  const toggleFullscreen = () => {
-    setIsFullscreen(!isFullscreen);
-    // Give the browser a moment to update the DOM
-    setTimeout(() => {
-      if (cyInstanceRef.current) {
-        cyInstanceRef.current.fit();
-        cyInstanceRef.current.center();
-      }
-    }, 100);
-  };
-  
-  // Close node info popup
-  const closeNodeInfo = () => {
-    setNodeInfo({ ...nodeInfo, visible: false });
-  };
-  
   return (
-    <>
-      <div className={`relative rounded-md bg-white dark:bg-slate-900 overflow-hidden ${
-        isFullscreen ? 'fixed inset-0 z-50' : 'w-full h-full'
-      }`}>
-        <Button
-          variant="outline"
-          size="sm"
-          className="absolute right-2 top-2 z-10"
-          onClick={toggleFullscreen}
-          aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-        >
-          <Maximize size={16} />
-        </Button>
-        
-        <div ref={cyRef} className="w-full h-full" />
-        
-        {nodeInfo.visible && (
-          <div
-            className="absolute z-10 bg-white dark:bg-slate-800 p-4 rounded-md shadow-lg border border-slate-200 dark:border-slate-700 max-w-xs"
-            style={{
-              left: `${nodeInfo.x + 10}px`,
-              top: `${nodeInfo.y - 20}px`,
-            }}
-          >
-            <Button
-              variant="ghost"
-              size="sm"
-              className="absolute right-1 top-1"
-              onClick={closeNodeInfo}
-            >
-              <X size={14} />
-            </Button>
-            
-            <h3 className="text-sm font-semibold mb-2">{nodeInfo.data.type === 'edge' ? 'Edge' : nodeInfo.data.type} Info</h3>
-            
-            <div className="text-xs space-y-1">
-              <div><span className="font-medium">ID:</span> {nodeInfo.data.id}</div>
-              
-              {nodeInfo.data.type === 'place' && (
-                <>
-                  <div><span className="font-medium">Tokens:</span> {nodeInfo.data.tokens || 0}</div>
-                  <div><span className="font-medium">Incoming:</span> {nodeInfo.data.incomingEdges}</div>
-                  <div><span className="font-medium">Outgoing:</span> {nodeInfo.data.outgoingEdges}</div>
-                </>
-              )}
-              
-              {nodeInfo.data.type === 'transition' && (
-                <>
-                  <div><span className="font-medium">Incoming:</span> {nodeInfo.data.incomingEdges}</div>
-                  <div><span className="font-medium">Outgoing:</span> {nodeInfo.data.outgoingEdges}</div>
-                </>
-              )}
-              
-              {nodeInfo.data.type === 'edge' && (
-                <>
-                  <div><span className="font-medium">Source:</span> {nodeInfo.data.source}</div>
-                  <div><span className="font-medium">Target:</span> {nodeInfo.data.target}</div>
-                  <div><span className="font-medium">Rule:</span> {nodeInfo.data.rule}</div>
-                </>
-              )}
-              
-              <div><span className="font-medium">Created:</span> {nodeInfo.data.created}</div>
-            </div>
-          </div>
-        )}
-      </div>
-      {isFullscreen && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-40"
-          onClick={toggleFullscreen}
-        />
-      )}
-    </>
+    <div 
+      ref={cyRef} 
+      className="w-full h-full rounded-md bg-white dark:bg-slate-900 overflow-hidden"
+    />
   );
 };
 
