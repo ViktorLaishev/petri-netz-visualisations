@@ -453,7 +453,7 @@ const applyDualAbstractionRule = (graph: Graph, targetId: string, endNodeId?: st
 // Enhanced random rule application for Abstraction Rule
 const applyRandomAbstractionRule = (graph: Graph): Graph => {
   // Try multiple times to find a valid application
-  const MAX_ATTEMPTS = 10;
+  const MAX_ATTEMPTS = 15;
   
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     // Find all transition nodes
@@ -467,7 +467,9 @@ const applyRandomAbstractionRule = (graph: Graph): Graph => {
     const newGraph = applyAbstractionRule(graph, randomTransition.id);
     
     // If successful application (graph changed) and valid
-    if (newGraph !== graph && isConnectedGraph(newGraph) && !wouldCreateInvalidConnections(newGraph)) {
+    if (newGraph !== graph && 
+        isConnectedGraph(newGraph) && 
+        !wouldCreateInvalidConnections(newGraph)) {
       return newGraph;
     }
   }
@@ -479,18 +481,22 @@ const applyRandomAbstractionRule = (graph: Graph): Graph => {
 // Enhanced random rule application for Linear Transition Rule
 const applyRandomLinearTransitionRule = (graph: Graph): Graph => {
   // Try multiple times to find a valid application
-  const MAX_ATTEMPTS = 10;
+  const MAX_ATTEMPTS = 15;
   
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     // Find all place nodes
     const places = graph.nodes.filter(node => node.type === 'place');
     if (places.length === 0) return graph;
     
-    // Select random place
-    const randomPlace = places[Math.floor(Math.random() * places.length)];
+    // Don't use P_out as a starting point
+    const validStartPlaces = places.filter(p => p.id !== 'P_out');
+    if (validStartPlaces.length === 0) return graph;
     
-    // Select a random end place (different from start)
-    const endPlaces = places.filter(p => p.id !== randomPlace.id);
+    // Select random place
+    const randomPlace = validStartPlaces[Math.floor(Math.random() * validStartPlaces.length)];
+    
+    // Optionally select an end place (avoid using P0)
+    const endPlaces = places.filter(p => p.id !== randomPlace.id && p.id !== 'P0');
     let endNodeId = undefined;
     if (endPlaces.length > 0 && Math.random() > 0.5) {
       const randomEndPlace = endPlaces[Math.floor(Math.random() * endPlaces.length)];
@@ -501,7 +507,9 @@ const applyRandomLinearTransitionRule = (graph: Graph): Graph => {
     const newGraph = applyLinearTransitionRule(graph, randomPlace.id, endNodeId);
     
     // If successful application and valid
-    if (newGraph !== graph && isConnectedGraph(newGraph) && !wouldCreateInvalidConnections(newGraph)) {
+    if (newGraph !== graph && 
+        isConnectedGraph(newGraph) && 
+        !wouldCreateInvalidConnections(newGraph)) {
       return newGraph;
     }
   }
@@ -513,7 +521,7 @@ const applyRandomLinearTransitionRule = (graph: Graph): Graph => {
 // Enhanced random rule application for Linear Place Rule
 const applyRandomLinearPlaceRule = (graph: Graph): Graph => {
   // Try multiple times to find a valid application
-  const MAX_ATTEMPTS = 10;
+  const MAX_ATTEMPTS = 15;
   
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     // Find all transition nodes
@@ -527,7 +535,9 @@ const applyRandomLinearPlaceRule = (graph: Graph): Graph => {
     const newGraph = applyLinearPlaceRule(graph, randomTransition.id);
     
     // If successful application and valid
-    if (newGraph !== graph && isConnectedGraph(newGraph) && !wouldCreateInvalidConnections(newGraph)) {
+    if (newGraph !== graph && 
+        isConnectedGraph(newGraph) && 
+        !wouldCreateInvalidConnections(newGraph)) {
       return newGraph;
     }
   }
@@ -539,21 +549,27 @@ const applyRandomLinearPlaceRule = (graph: Graph): Graph => {
 // Enhanced random rule application for Linear Transition Dependency Rule
 const applyRandomLinearTransitionDependencyRule = (graph: Graph): Graph => {
   // Try multiple times to find a valid application
-  const MAX_ATTEMPTS = 10;
+  const MAX_ATTEMPTS = 15;
   
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     // Find all place nodes
     const places = graph.nodes.filter(node => node.type === 'place');
     if (places.length === 0) return graph;
     
+    // Avoid using P0 or P_out as targets
+    const validPlaces = places.filter(p => p.id !== 'P0' && p.id !== 'P_out');
+    if (validPlaces.length === 0) return graph;
+    
     // Select a random place
-    const randomPlace = places[Math.floor(Math.random() * places.length)];
+    const randomPlace = validPlaces[Math.floor(Math.random() * validPlaces.length)];
     
     // Apply the rule
     const newGraph = applyLinearTransitionDependencyRule(graph, randomPlace.id);
     
     // If successful application and valid
-    if (newGraph !== graph && isConnectedGraph(newGraph) && !wouldCreateInvalidConnections(newGraph)) {
+    if (newGraph !== graph && 
+        isConnectedGraph(newGraph) && 
+        !wouldCreateInvalidConnections(newGraph)) {
       return newGraph;
     }
   }
@@ -565,7 +581,7 @@ const applyRandomLinearTransitionDependencyRule = (graph: Graph): Graph => {
 // Enhanced random rule application for Dual Abstraction Rule
 const applyRandomDualAbstractionRule = (graph: Graph): Graph => {
   // Try multiple times to find a valid application
-  const MAX_ATTEMPTS = 10;
+  const MAX_ATTEMPTS = 15;
   
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     // Find all transition nodes
@@ -587,7 +603,9 @@ const applyRandomDualAbstractionRule = (graph: Graph): Graph => {
     const newGraph = applyDualAbstractionRule(graph, randomTransition.id, endNodeId);
     
     // If successful application and valid
-    if (newGraph !== graph && isConnectedGraph(newGraph) && !wouldCreateInvalidConnections(newGraph)) {
+    if (newGraph !== graph && 
+        isConnectedGraph(newGraph) && 
+        !wouldCreateInvalidConnections(newGraph)) {
       return newGraph;
     }
   }
@@ -601,20 +619,15 @@ const applyRandomDualAbstractionRule = (graph: Graph): Graph => {
 const isConnectedGraph = (graph: Graph): boolean => {
   if (graph.nodes.length === 0) return true;
   
-  // Find start node (place with tokens)
-  const startNode = graph.nodes.find(n => n.type === 'place' && n.tokens && n.tokens > 0);
+  // Find the start node (P0)
+  const startNode = graph.nodes.find(n => n.id === 'P0');
   if (!startNode) {
-    // If no tokens, try first place as start
-    const firstPlace = graph.nodes.find(n => n.type === 'place');
-    if (!firstPlace) return true; // No places in graph
+    return false; // P0 must exist
   }
   
-  const startId = startNode?.id || graph.nodes.find(n => n.type === 'place')?.id;
-  if (!startId) return true; // No places in graph
-  
-  // BFS to check connectivity
+  // BFS to check connectivity from P0
   const visited = new Set<string>();
-  const queue: string[] = [startId];
+  const queue: string[] = [startNode.id];
   
   while (queue.length > 0) {
     const nodeId = queue.shift()!;
@@ -639,6 +652,14 @@ const isConnectedGraph = (graph: Graph): boolean => {
 
 // Function to check if a graph would have invalid connections
 const wouldCreateInvalidConnections = (graph: Graph): boolean => {
+  // Check for P0 and P_out
+  const hasP0 = graph.nodes.some(n => n.id === 'P0');
+  const hasPOut = graph.nodes.some(n => n.id === 'P_out');
+  
+  if (!hasP0 || !hasPOut) {
+    return true; // Both P0 and P_out must exist
+  }
+  
   // Places shouldn't connect to places
   const placeToPlaceConnections = graph.edges.some(edge => {
     const sourceType = graph.nodes.find(n => n.id === edge.source)?.type;
@@ -660,6 +681,10 @@ const wouldCreateInvalidConnections = (graph: Graph): boolean => {
     const hasOutgoing = graph.edges.some(e => e.source === node.id);
     const hasIncoming = graph.edges.some(e => e.target === node.id);
     
+    // P0 can have no incoming, P_out can have no outgoing
+    if (node.id === 'P0' && hasOutgoing) return false;
+    if (node.id === 'P_out' && hasIncoming) return false;
+    
     return !hasOutgoing && !hasIncoming;
   });
   
@@ -673,10 +698,40 @@ const wouldCreateInvalidConnections = (graph: Graph): boolean => {
     return !hasOutgoing || !hasIncoming;
   });
   
+  // Check if there's at least one path from P0 to P_out
+  let hasPathFromP0ToPOut = false;
+  
+  if (hasP0 && hasPOut && !placeToPlaceConnections && !transToTransConnections) {
+    // Simple check: Find if P_out is reachable from P0
+    const visited = new Set<string>();
+    const queue: string[] = ['P0'];
+    
+    while (queue.length > 0) {
+      const nodeId = queue.shift()!;
+      if (visited.has(nodeId)) continue;
+      
+      visited.add(nodeId);
+      
+      if (nodeId === 'P_out') {
+        hasPathFromP0ToPOut = true;
+        break;
+      }
+      
+      // Add all nodes reachable from this one
+      const outgoing = graph.edges.filter(e => e.source === nodeId).map(e => e.target);
+      outgoing.forEach(id => {
+        if (!visited.has(id)) {
+          queue.push(id);
+        }
+      });
+    }
+  }
+  
   return placeToPlaceConnections || 
          transToTransConnections || 
          placesWithNoConnections.length > 0 ||
-         transitionsWithInvalidConnections.length > 0;
+         transitionsWithInvalidConnections.length > 0 ||
+         !hasPathFromP0ToPOut;
 };
 
 // Map rules to their implementations
@@ -715,7 +770,7 @@ const rulesMap: Record<string, {
   },
 };
 
-// Create initial graph
+// Create initial graph - ensuring P0 and P_out exist
 const initialGraph = (): Graph => {
   return {
     nodes: [
@@ -1098,33 +1153,8 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
         saveStateToStorage(newState);
         return newState;
       } else {
-        // Fall back to the old implementation if no random function is available
-        // Find valid targets for this rule
-        const validTargets = state.graph.nodes.filter(n => n.type === ruleInfo.targetType);
-        
-        if (validTargets.length === 0) {
-          toast.error(`No valid targets for rule ${randomRule}`);
-          return state;
-        }
-        
-        // Select a random target
-        const randomTarget = validTargets[Math.floor(Math.random() * validTargets.length)];
-        
-        let newState = pushHistory(state);
-        const newGraph = ruleInfo.fn(newState.graph, randomTarget.id);
-        
-        // If the graph didn't change, the rule couldn't be applied
-        if (newGraph === newState.graph) {
-          return state;
-        }
-        
-        newState = addLogEntry({
-          ...newState,
-          graph: newGraph
-        }, `Random ${randomRule} on ${randomTarget.id}`);
-        
-        saveStateToStorage(newState);
-        return newState;
+        // Fallback to original implementation (shouldn't happen with enhanced random functions)
+        return state;
       }
     }
       
@@ -1133,7 +1163,13 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
       let newState = pushHistory(state);
       let newGraph = { ...newState.graph };
       
-      for (let i = 0; i < count; i++) {
+      // Track successful applications
+      let successCount = 0;
+      const MAX_ATTEMPTS = count * 3; // Allow more attempts than requested count
+      
+      for (let attempt = 0; attempt < MAX_ATTEMPTS && successCount < count; attempt++) {
+        let tempGraph;
+        
         if (useRandom) {
           // Apply random rule using the dedicated random functions
           const ruleNames = Object.keys(rulesMap);
@@ -1141,59 +1177,34 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
           const ruleInfo = rulesMap[randomRule];
           
           if (ruleInfo.randomFn) {
-            const tempGraph = ruleInfo.randomFn(newGraph);
-            
-            // Only update if rule application was successful
-            if (tempGraph !== newGraph) {
-              newGraph = tempGraph;
-              newState = addLogEntry(newState, `Batch random ${randomRule} applied`);
-            }
-          } else {
-            // Fall back to the old implementation
-            const validTargets = newGraph.nodes.filter(n => n.type === ruleInfo.targetType);
-            
-            if (validTargets.length > 0) {
-              const randomTarget = validTargets[Math.floor(Math.random() * validTargets.length)];
-              const tempGraph = ruleInfo.fn(newGraph, randomTarget.id);
-              
-              // Only update if rule application was successful
-              if (tempGraph !== newGraph) {
-                newGraph = tempGraph;
-                newState = addLogEntry(newState, `Batch random ${randomRule} on ${randomTarget.id}`);
-              }
-            }
+            tempGraph = ruleInfo.randomFn(newGraph);
           }
         } else if (selectedRules.length > 0) {
           // Apply selected rules with weights
           const selectedRule = getWeightedRandomRule(selectedRules, ruleWeights);
           const ruleInfo = rulesMap[selectedRule];
           
-          if (ruleInfo) {
-            if (ruleInfo.randomFn) {
-              const tempGraph = ruleInfo.randomFn(newGraph);
-              
-              // Only update if rule application was successful
-              if (tempGraph !== newGraph) {
-                newGraph = tempGraph;
-                newState = addLogEntry(newState, `Batch ${selectedRule} applied`);
-              }
-            } else {
-              // Fall back to the old implementation
-              const validTargets = newGraph.nodes.filter(n => n.type === ruleInfo.targetType);
-              
-              if (validTargets.length > 0) {
-                const randomTarget = validTargets[Math.floor(Math.random() * validTargets.length)];
-                const tempGraph = ruleInfo.fn(newGraph, randomTarget.id);
-                
-                // Only update if rule application was successful
-                if (tempGraph !== newGraph) {
-                  newGraph = tempGraph;
-                  newState = addLogEntry(newState, `Batch ${selectedRule} on ${randomTarget.id}`);
-                }
-              }
-            }
+          if (ruleInfo && ruleInfo.randomFn) {
+            tempGraph = ruleInfo.randomFn(newGraph);
           }
         }
+        
+        // Only update if rule application was successful and maintains valid structure
+        if (tempGraph && 
+            tempGraph !== newGraph && 
+            isConnectedGraph(tempGraph) && 
+            !wouldCreateInvalidConnections(tempGraph)) {
+          newGraph = tempGraph;
+          newState = addLogEntry(newState, `Batch rule application #${successCount + 1} successful`);
+          successCount++;
+        }
+      }
+      
+      if (successCount === 0) {
+        toast.error("Could not apply any rules successfully");
+        return state;
+      } else if (successCount < count) {
+        toast.warning(`Only applied ${successCount}/${count} rules successfully`);
       }
       
       newState = {
