@@ -143,6 +143,18 @@ const applyAbstractionRule = (graph: Graph, targetId: string): Graph => {
     ...outputPlaces.map(output => ({ source: transId, target: output })) // new transition -> original outputs
   ];
   
+  // Final validation
+  if (wouldCreateInvalidConnections(newGraph)) {
+    toast.error("Cannot apply this rule: it would create invalid connections");
+    return graph; // Return original graph
+  }
+  
+  // Verify node connectivity - ensure all nodes are reachable from start
+  if (!isConnectedGraph(newGraph)) {
+    toast.error("Cannot apply this rule: it would create disconnected nodes");
+    return graph;
+  }
+  
   return newGraph;
 };
 
@@ -190,11 +202,18 @@ const applyLinearTransitionRule = (graph: Graph, targetId: string, endNodeId?: s
     return graph; // Return original graph
   }
   
+  // Verify node connectivity - ensure all nodes are reachable from start
+  if (!isConnectedGraph(newGraph)) {
+    toast.error("Cannot apply this rule: it would create disconnected nodes");
+    return graph;
+  }
+  
   return newGraph;
 };
 
+// Linear Place Rule - Improved based on Python's add_row logic
 const applyLinearPlaceRule = (graph: Graph, targetId: string): Graph => {
-  // Implementation of linear place rule (ψP) based on the linear dependency concept
+  // Implementation of linear place rule (ψP) based on add_row
   const newGraph = { ...graph };
   
   // Get target transition node
@@ -214,59 +233,64 @@ const applyLinearPlaceRule = (graph: Graph, targetId: string): Graph => {
   const placeId = `P${newGraph.nodes.filter(n => n.type === 'place').length}`;
   
   // Add new place node
-  const updatedNodes: Node[] = [
+  newGraph.nodes = [
     ...newGraph.nodes, 
     { id: placeId, type: 'place', tokens: 0 }
   ];
   
-  newGraph.nodes = updatedNodes;
+  // Similar to Python's add_row function, we'll create linear combinations
+  // First, try to find valid transitions to connect (input + output)
+  const transitionsToConnectFrom: string[] = []; // Will connect TO the new place
+  const transitionsToConnectTo: string[] = []; // Will connect FROM the new place
   
-  // Choose a random subset of transitions to connect to this place (at least 2)
-  // This simulates the linear combination concept
-  const transitionsToConnect = [targetId];
+  // Always include target transition as input (similar to coefficients in Python)
+  transitionsToConnectFrom.push(targetId);
   
-  // Add at least one more random transition
-  const otherTransitions = transitions
+  // Find potential output transitions (creating a combination)
+  const potentialOutputs = transitions
     .filter(t => t.id !== targetId)
     .map(t => t.id);
   
-  if (otherTransitions.length > 0) {
-    const randomTransition = otherTransitions[Math.floor(Math.random() * otherTransitions.length)];
-    transitionsToConnect.push(randomTransition);
+  // Add at least one random output transition if available
+  if (potentialOutputs.length > 0) {
+    const randomOutput = potentialOutputs[Math.floor(Math.random() * potentialOutputs.length)];
+    transitionsToConnectTo.push(randomOutput);
   }
   
-  // Create edges from the selected transitions to our new place
-  const newEdges = transitionsToConnect.map(transId => ({
+  // Create edges - transitions to new place (inputs)
+  const inputEdges = transitionsToConnectFrom.map(transId => ({
     source: transId,
     target: placeId
   }));
   
-  // Check if these new connections would create a valid linear combination
-  const proposedEdges = transitionsToConnect.map(transId => ({
-    source: transId,
-    target: placeId,
-    isOutgoing: false
+  // Create edges - new place to transitions (outputs)
+  const outputEdges = transitionsToConnectTo.map(transId => ({
+    source: placeId,
+    target: transId
   }));
   
-  if (!validateNewPlace(newGraph, proposedEdges)) {
-    toast.error("Cannot create a linearly dependent place with the selected transitions");
+  // Add all new edges
+  newGraph.edges = [...newGraph.edges, ...inputEdges, ...outputEdges];
+  
+  // Validate if the edges would create a valid petri net
+  // This corresponds to validate_matrix in the Python code
+  if (wouldCreateInvalidConnections(newGraph)) {
+    toast.error("Cannot create a valid linear dependent place configuration");
     return graph; // Return original graph
   }
   
-  // Add the new edges
-  newGraph.edges = [...newGraph.edges, ...newEdges];
-  
-  // Check if this would create invalid patterns
-  if (wouldCreateInvalidConnections(newGraph)) {
-    toast.error("Cannot apply this rule: it would create invalid connections");
-    return graph; // Return original graph
+  // Verify node connectivity - ensure all nodes are reachable from start
+  if (!isConnectedGraph(newGraph)) {
+    toast.error("Cannot apply this rule: it would create disconnected nodes");
+    return graph;
   }
   
   return newGraph;
 };
 
+// Linear Transition Dependency Rule - Improved based on Python's add_column logic
 const applyLinearTransitionDependencyRule = (graph: Graph, targetId: string): Graph => {
-  // Implementation of linear transition dependency rule based on the add_column function
+  // Implementation of linear transition dependency rule based on add_column function
   const newGraph = { ...graph };
   
   // Get target place node
@@ -291,66 +315,62 @@ const applyLinearTransitionDependencyRule = (graph: Graph, targetId: string): Gr
     { id: transId, type: 'transition' }
   ];
   
-  // Choose a random subset of places to connect to this transition (at least 2)
-  // This simulates the linear combination concept
-  const placesToConnectFrom = [targetId]; // Input places
-  const placesToConnectTo = []; // Output places
+  // Similar to Python's add_column function, create linear combinations
+  // We'll select input and output places for the new transition
   
-  // Add at least one more random place as input
-  const otherPlaces = places
+  // Places that will connect TO the new transition (inputs)
+  const placesToConnectFrom: string[] = [];
+  
+  // Places that will connect FROM the new transition (outputs)
+  const placesToConnectTo: string[] = [];
+  
+  // Always include target place as input
+  placesToConnectFrom.push(targetId);
+  
+  // Find potential output places
+  const potentialOutputs = places
     .filter(p => p.id !== targetId)
     .map(p => p.id);
   
-  if (otherPlaces.length > 0) {
-    const randomPlace = otherPlaces[Math.floor(Math.random() * otherPlaces.length)];
-    placesToConnectFrom.push(randomPlace);
+  // Add at least one random output place if available
+  if (potentialOutputs.length > 0) {
+    // Select a random place as output
+    const randomPlace = potentialOutputs[Math.floor(Math.random() * potentialOutputs.length)];
+    placesToConnectTo.push(randomPlace);
     
-    // Optionally select one more place as output
-    if (otherPlaces.length > 1) {
-      const remainingPlaces = otherPlaces.filter(p => p !== randomPlace);
-      const randomOutputPlace = remainingPlaces[Math.floor(Math.random() * remainingPlaces.length)];
-      placesToConnectTo.push(randomOutputPlace);
+    // Optionally add another input place (following linear combination logic)
+    const remainingPlaces = potentialOutputs.filter(p => p !== randomPlace);
+    if (remainingPlaces.length > 0 && Math.random() > 0.5) {
+      const additionalPlace = remainingPlaces[Math.floor(Math.random() * remainingPlaces.length)];
+      placesToConnectFrom.push(additionalPlace);
     }
   }
   
-  // Create edges from input places to our new transition
+  // Create edges from input places to the new transition
   const inputEdges = placesToConnectFrom.map(placeId => ({
     source: placeId,
     target: transId
   }));
   
-  // Create edges from our new transition to output places
+  // Create edges from the new transition to output places
   const outputEdges = placesToConnectTo.map(placeId => ({
     source: transId,
     target: placeId
   }));
   
-  // Check if these new connections would create a valid linear combination
-  const proposedEdges = [
-    ...placesToConnectFrom.map(placeId => ({
-      source: placeId,
-      target: transId,
-      isOutgoing: false
-    })),
-    ...placesToConnectTo.map(placeId => ({
-      source: transId,
-      target: placeId,
-      isOutgoing: true
-    }))
-  ];
+  // Add all new edges
+  newGraph.edges = [...newGraph.edges, ...inputEdges, ...outputEdges];
   
-  if (!validateNewTransition(newGraph, proposedEdges)) {
-    toast.error("Cannot create a linearly dependent transition with the selected places");
+  // Validate if the edges would create a valid petri net
+  if (wouldCreateInvalidConnections(newGraph)) {
+    toast.error("Cannot create a valid linear dependent transition configuration");
     return graph; // Return original graph
   }
   
-  // Add the new edges
-  newGraph.edges = [...newGraph.edges, ...inputEdges, ...outputEdges];
-  
-  // Check if this would create invalid patterns
-  if (wouldCreateInvalidConnections(newGraph)) {
-    toast.error("Cannot apply this rule: it would create invalid connections");
-    return graph; // Return original graph
+  // Verify node connectivity - ensure all nodes are reachable from start
+  if (!isConnectedGraph(newGraph)) {
+    toast.error("Cannot apply this rule: it would create disconnected nodes");
+    return graph;
   }
   
   return newGraph;
@@ -421,7 +441,54 @@ const applyDualAbstractionRule = (graph: Graph, targetId: string, endNodeId?: st
     return graph; // Return original graph
   }
   
+  // Verify node connectivity - ensure all nodes are reachable from start
+  if (!isConnectedGraph(newGraph)) {
+    toast.error("Cannot apply this rule: it would create disconnected nodes");
+    return graph;
+  }
+  
   return newGraph;
+};
+
+// Helper function to check if the graph is connected
+// This ensures there are no disconnected nodes after rule application
+const isConnectedGraph = (graph: Graph): boolean => {
+  if (graph.nodes.length === 0) return true;
+  
+  // Find start node (place with tokens)
+  const startNode = graph.nodes.find(n => n.type === 'place' && n.tokens && n.tokens > 0);
+  if (!startNode) {
+    // If no tokens, try first place as start
+    const firstPlace = graph.nodes.find(n => n.type === 'place');
+    if (!firstPlace) return true; // No places in graph
+  }
+  
+  const startId = startNode?.id || graph.nodes.find(n => n.type === 'place')?.id;
+  if (!startId) return true; // No places in graph
+  
+  // BFS to check connectivity
+  const visited = new Set<string>();
+  const queue: string[] = [startId];
+  
+  while (queue.length > 0) {
+    const nodeId = queue.shift()!;
+    if (visited.has(nodeId)) continue;
+    
+    visited.add(nodeId);
+    
+    // Add all connected nodes to queue
+    const outgoing = graph.edges.filter(e => e.source === nodeId).map(e => e.target);
+    const incoming = graph.edges.filter(e => e.target === nodeId).map(e => e.source);
+    
+    [...outgoing, ...incoming].forEach(id => {
+      if (!visited.has(id)) {
+        queue.push(id);
+      }
+    });
+  }
+  
+  // All nodes should be visited
+  return visited.size === graph.nodes.length;
 };
 
 // Function to check if a graph would have invalid connections
@@ -440,7 +507,30 @@ const wouldCreateInvalidConnections = (graph: Graph): boolean => {
     return sourceType === 'transition' && targetType === 'transition';
   });
   
-  return placeToPlaceConnections || transToTransConnections;
+  // Every place should have at least one input or output (except source/sink)
+  const placesWithNoConnections = graph.nodes.filter(node => {
+    if (node.type !== 'place') return false;
+    
+    const hasOutgoing = graph.edges.some(e => e.source === node.id);
+    const hasIncoming = graph.edges.some(e => e.target === node.id);
+    
+    return !hasOutgoing && !hasIncoming;
+  });
+  
+  // Every transition should have at least one input and one output
+  const transitionsWithInvalidConnections = graph.nodes.filter(node => {
+    if (node.type !== 'transition') return false;
+    
+    const hasOutgoing = graph.edges.some(e => e.source === node.id);
+    const hasIncoming = graph.edges.some(e => e.target === node.id);
+    
+    return !hasOutgoing || !hasIncoming;
+  });
+  
+  return placeToPlaceConnections || 
+         transToTransConnections || 
+         placesWithNoConnections.length > 0 ||
+         transitionsWithInvalidConnections.length > 0;
 };
 
 // Map rules to their implementations
@@ -734,6 +824,20 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
         return state;
       }
       
+      // Validate node types (place to transition or transition to place)
+      const sourceNode = state.graph.nodes.find(n => n.id === action.source);
+      const targetNode = state.graph.nodes.find(n => n.id === action.target);
+      
+      if (!sourceNode || !targetNode) {
+        toast.error("Source or target node not found");
+        return state;
+      }
+      
+      if (sourceNode.type === targetNode.type) {
+        toast.error(`Cannot connect ${sourceNode.type} to ${targetNode.type}`);
+        return state;
+      }
+      
       let newState = pushHistory(state);
       const newGraph = {
         ...newState.graph,
@@ -787,6 +891,11 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
       let newState = pushHistory(state);
       const newGraph = ruleInfo.fn(newState.graph, target, endNodeId);
       
+      // If the graph didn't change, the rule couldn't be applied
+      if (newGraph === newState.graph) {
+        return state;
+      }
+      
       newState = addLogEntry({
         ...newState,
         graph: newGraph
@@ -816,6 +925,11 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
       let newState = pushHistory(state);
       const newGraph = ruleInfo.fn(newState.graph, randomTarget.id);
       
+      // If the graph didn't change, the rule couldn't be applied
+      if (newGraph === newState.graph) {
+        return state;
+      }
+      
       newState = addLogEntry({
         ...newState,
         graph: newGraph
@@ -842,8 +956,13 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
           
           if (validTargets.length > 0) {
             const randomTarget = validTargets[Math.floor(Math.random() * validTargets.length)];
-            newGraph = ruleInfo.fn(newGraph, randomTarget.id);
-            newState = addLogEntry(newState, `Batch random ${randomRule} on ${randomTarget.id}`);
+            const tempGraph = ruleInfo.fn(newGraph, randomTarget.id);
+            
+            // Only update if rule application was successful
+            if (tempGraph !== newGraph) {
+              newGraph = tempGraph;
+              newState = addLogEntry(newState, `Batch random ${randomRule} on ${randomTarget.id}`);
+            }
           }
         } else if (selectedRules.length > 0) {
           // Apply selected rules with weights
@@ -855,8 +974,13 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
             
             if (validTargets.length > 0) {
               const randomTarget = validTargets[Math.floor(Math.random() * validTargets.length)];
-              newGraph = ruleInfo.fn(newGraph, randomTarget.id);
-              newState = addLogEntry(newState, `Batch ${selectedRule} on ${randomTarget.id}`);
+              const tempGraph = ruleInfo.fn(newGraph, randomTarget.id);
+              
+              // Only update if rule application was successful
+              if (tempGraph !== newGraph) {
+                newGraph = tempGraph;
+                newState = addLogEntry(newState, `Batch ${selectedRule} on ${randomTarget.id}`);
+              }
             }
           }
         }
@@ -875,14 +999,14 @@ const petriNetReducer = (state: PetriNetState, action: ActionType): PetriNetStat
       const { start, end } = action;
       
       // Validate start and end nodes
-      const startNode = state.graph.nodes.find(n => n.type === 'place' && n.tokens && n.tokens > 0);
+      const startNode = state.graph.nodes.find(n => n.id === start && n.type === 'place');
       if (!startNode) {
-        toast.error("No start node with tokens found");
+        toast.error(`Start node ${start} is not a valid place`);
         return state;
       }
       
-      const endNode = state.graph.nodes.find(n => n.id === end);
-      if (!endNode || endNode.type !== 'place') {
+      const endNode = state.graph.nodes.find(n => n.id === end && n.type === 'place');
+      if (!endNode) {
         toast.error(`End node ${end} is not a valid place`);
         return state;
       }
