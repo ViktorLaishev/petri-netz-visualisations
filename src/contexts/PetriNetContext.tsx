@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useReducer, useEffect, ReactNode } from "react";
 import { toast } from "sonner";
+import { validateNewPlace, validateNewTransition } from "@/lib/utils";
 
 // Define types
 type NodeType = 'place' | 'transition';
@@ -122,10 +123,12 @@ const applyAbstractionRule = (graph: Graph, targetId: string): Graph => {
   const transId = `T${newGraph.nodes.filter(n => n.type === 'transition').length}`;
   
   // Add new nodes
-  newGraph.nodes = [...newGraph.nodes, 
+  const updatedNodes: Node[] = [...newGraph.nodes, 
     { id: placeId, type: 'place', tokens: 0 },
     { id: transId, type: 'transition' }
   ];
+  
+  newGraph.nodes = updatedNodes;
   
   // Remove direct edges from target to its outputs
   newGraph.edges = newGraph.edges.filter(e => !(e.source === targetId && outputPlaces.includes(e.target)));
@@ -155,10 +158,12 @@ const applyLinearTransitionRule = (graph: Graph, targetId: string, endNodeId?: s
   const transId = `T${newGraph.nodes.filter(n => n.type === 'transition').length}`;
   
   // Add new transition node
-  newGraph.nodes = [
+  const updatedNodes: Node[] = [
     ...newGraph.nodes, 
     { id: transId, type: 'transition' }
   ];
+  
+  newGraph.nodes = updatedNodes;
   
   // Connect target place to new transition
   newGraph.edges = [
@@ -179,66 +184,173 @@ const applyLinearTransitionRule = (graph: Graph, targetId: string, endNodeId?: s
     newGraph.edges.push({ source: transId, target: placeId });
   }
   
+  // Check if this would create invalid patterns
+  if (wouldCreateInvalidConnections(newGraph)) {
+    toast.error("Cannot apply this rule: it would create invalid connections");
+    return graph; // Return original graph
+  }
+  
   return newGraph;
 };
 
 const applyLinearPlaceRule = (graph: Graph, targetId: string): Graph => {
-  // Implementation of linear place rule (ψP)
+  // Implementation of linear place rule (ψP) based on the linear dependency concept
   const newGraph = { ...graph };
   
   // Get target transition node
   const targetNode = newGraph.nodes.find(node => node.id === targetId);
   if (!targetNode || targetNode.type !== 'transition') return newGraph;
   
+  // Find all transitions in the graph
+  const transitions = newGraph.nodes.filter(n => n.type === 'transition');
+  
+  // If we have only one transition, we can't create a linear dependent place
+  if (transitions.length <= 1) {
+    toast.error("Need at least two transitions for linear dependent place rule");
+    return newGraph;
+  }
+  
   // Create new place
   const placeId = `P${newGraph.nodes.filter(n => n.type === 'place').length}`;
   
   // Add new place node
-  newGraph.nodes = [
+  const updatedNodes: Node[] = [
     ...newGraph.nodes, 
     { id: placeId, type: 'place', tokens: 0 }
   ];
   
-  // Connect new place to target transition
-  newGraph.edges = [
-    ...newGraph.edges,
-    { source: placeId, target: targetId }
+  newGraph.nodes = updatedNodes;
+  
+  // Choose a random subset of transitions to connect to this place (at least 2)
+  // This simulates the linear combination concept
+  const transitionsToConnect = [targetId];
+  
+  // Add at least one more random transition
+  const otherTransitions = transitions
+    .filter(t => t.id !== targetId)
+    .map(t => t.id);
+  
+  if (otherTransitions.length > 0) {
+    const randomTransition = otherTransitions[Math.floor(Math.random() * otherTransitions.length)];
+    transitionsToConnect.push(randomTransition);
+  }
+  
+  // Create edges from the selected transitions to our new place
+  const newEdges = transitionsToConnect.map(transId => ({
+    source: transId,
+    target: placeId
+  }));
+  
+  // Check if these new connections would create a valid linear combination
+  const proposedEdges = transitionsToConnect.map(transId => ({
+    source: transId,
+    target: placeId,
+    isOutgoing: false
+  }));
+  
+  if (!validateNewPlace(newGraph, proposedEdges)) {
+    toast.error("Cannot create a linearly dependent place with the selected transitions");
+    return graph; // Return original graph
+  }
+  
+  // Add the new edges
+  newGraph.edges = [...newGraph.edges, ...newEdges];
+  
+  // Check if this would create invalid patterns
+  if (wouldCreateInvalidConnections(newGraph)) {
+    toast.error("Cannot apply this rule: it would create invalid connections");
+    return graph; // Return original graph
+  }
+  
+  return newGraph;
+};
+
+const applyLinearTransitionDependencyRule = (graph: Graph, targetId: string): Graph => {
+  // Implementation of linear transition dependency rule based on the add_column function
+  const newGraph = { ...graph };
+  
+  // Get target place node
+  const targetNode = newGraph.nodes.find(node => node.id === targetId);
+  if (!targetNode || targetNode.type !== 'place') return newGraph;
+  
+  // Find all places in the graph
+  const places = newGraph.nodes.filter(n => n.type === 'place');
+  
+  // If we have only one place, we can't create a linear dependent transition
+  if (places.length <= 1) {
+    toast.error("Need at least two places for linear dependent transition rule");
+    return newGraph;
+  }
+  
+  // Create new transition
+  const transId = `T${newGraph.nodes.filter(n => n.type === 'transition').length}`;
+  
+  // Add new transition node
+  newGraph.nodes = [
+    ...newGraph.nodes, 
+    { id: transId, type: 'transition' }
   ];
   
-  // Add an incoming transition to the new place
-  // Find existing input places to the target transition
-  const inputPlaces = newGraph.edges
-    .filter(e => e.target === targetId)
-    .map(e => e.source)
-    .filter(id => newGraph.nodes.find(n => n.id === id)?.type === 'place');
+  // Choose a random subset of places to connect to this transition (at least 2)
+  // This simulates the linear combination concept
+  const placesToConnectFrom = [targetId]; // Input places
+  const placesToConnectTo = []; // Output places
+  
+  // Add at least one more random place as input
+  const otherPlaces = places
+    .filter(p => p.id !== targetId)
+    .map(p => p.id);
+  
+  if (otherPlaces.length > 0) {
+    const randomPlace = otherPlaces[Math.floor(Math.random() * otherPlaces.length)];
+    placesToConnectFrom.push(randomPlace);
     
-  if (inputPlaces.length > 0) {
-    // Create a connection from one of the existing input transitions
-    const firstInputPlace = inputPlaces[0];
-    // Find transitions connecting to this input place
-    const inputTransitions = newGraph.edges
-      .filter(e => e.target === firstInputPlace)
-      .map(e => e.source)
-      .filter(id => newGraph.nodes.find(n => n.id === id)?.type === 'transition');
-      
-    if (inputTransitions.length > 0) {
-      // Connect from an existing input transition to our new place
-      newGraph.edges.push({ source: inputTransitions[0], target: placeId });
-    } else {
-      // Create a new transition as input to our place
-      const transId = `T${newGraph.nodes.filter(n => n.type === 'transition').length}`;
-      newGraph.nodes.push({ id: transId, type: 'transition' });
-      
-      // Find starting place
-      const startPlace = newGraph.nodes.find(n => n.type === 'place' && 
-        !newGraph.edges.some(e => e.target === n.id));
-        
-      if (startPlace) {
-        newGraph.edges.push({ source: startPlace.id, target: transId });
-      }
-      
-      newGraph.edges.push({ source: transId, target: placeId });
+    // Optionally select one more place as output
+    if (otherPlaces.length > 1) {
+      const remainingPlaces = otherPlaces.filter(p => p !== randomPlace);
+      const randomOutputPlace = remainingPlaces[Math.floor(Math.random() * remainingPlaces.length)];
+      placesToConnectTo.push(randomOutputPlace);
     }
+  }
+  
+  // Create edges from input places to our new transition
+  const inputEdges = placesToConnectFrom.map(placeId => ({
+    source: placeId,
+    target: transId
+  }));
+  
+  // Create edges from our new transition to output places
+  const outputEdges = placesToConnectTo.map(placeId => ({
+    source: transId,
+    target: placeId
+  }));
+  
+  // Check if these new connections would create a valid linear combination
+  const proposedEdges = [
+    ...placesToConnectFrom.map(placeId => ({
+      source: placeId,
+      target: transId,
+      isOutgoing: false
+    })),
+    ...placesToConnectTo.map(placeId => ({
+      source: transId,
+      target: placeId,
+      isOutgoing: true
+    }))
+  ];
+  
+  if (!validateNewTransition(newGraph, proposedEdges)) {
+    toast.error("Cannot create a linearly dependent transition with the selected places");
+    return graph; // Return original graph
+  }
+  
+  // Add the new edges
+  newGraph.edges = [...newGraph.edges, ...inputEdges, ...outputEdges];
+  
+  // Check if this would create invalid patterns
+  if (wouldCreateInvalidConnections(newGraph)) {
+    toast.error("Cannot apply this rule: it would create invalid connections");
+    return graph; // Return original graph
   }
   
   return newGraph;
@@ -269,11 +381,13 @@ const applyDualAbstractionRule = (graph: Graph, targetId: string, endNodeId?: st
   const transId = `T${newGraph.nodes.filter(n => n.type === 'transition').length}`;
   
   // Add new nodes
-  newGraph.nodes = [
+  const updatedNodes: Node[] = [
     ...newGraph.nodes, 
     { id: transId, type: 'transition' },
     { id: placeId, type: 'place', tokens: 0 }
   ];
+  
+  newGraph.nodes = updatedNodes;
   
   // Remove direct edges from input places to target transition
   newGraph.edges = newGraph.edges.filter(e => !(inputPlaces.includes(e.source) && e.target === targetId));
@@ -301,7 +415,32 @@ const applyDualAbstractionRule = (graph: Graph, targetId: string, endNodeId?: st
     outputEdge
   ];
   
+  // Check if this would create invalid patterns
+  if (wouldCreateInvalidConnections(newGraph)) {
+    toast.error("Cannot apply this rule: it would create invalid connections");
+    return graph; // Return original graph
+  }
+  
   return newGraph;
+};
+
+// Function to check if a graph would have invalid connections
+const wouldCreateInvalidConnections = (graph: Graph): boolean => {
+  // Places shouldn't connect to places
+  const placeToPlaceConnections = graph.edges.some(edge => {
+    const sourceType = graph.nodes.find(n => n.id === edge.source)?.type;
+    const targetType = graph.nodes.find(n => n.id === edge.target)?.type;
+    return sourceType === 'place' && targetType === 'place';
+  });
+  
+  // Transitions shouldn't connect to transitions
+  const transToTransConnections = graph.edges.some(edge => {
+    const sourceType = graph.nodes.find(n => n.id === edge.source)?.type;
+    const targetType = graph.nodes.find(n => n.id === edge.target)?.type;
+    return sourceType === 'transition' && targetType === 'transition';
+  });
+  
+  return placeToPlaceConnections || transToTransConnections;
 };
 
 // Map rules to their implementations
@@ -313,6 +452,7 @@ const rulesMap: Record<string, {
   'Abstraction ψA': { fn: applyAbstractionRule, targetType: 'transition' },
   'Linear Transition ψT': { fn: applyLinearTransitionRule, targetType: 'place', endNodeType: 'place' },
   'Linear Place ψP': { fn: applyLinearPlaceRule, targetType: 'transition' },
+  'Linear Transition Dependency': { fn: applyLinearTransitionDependencyRule, targetType: 'place' },
   'Dual Abstraction ψD': { fn: applyDualAbstractionRule, targetType: 'transition', endNodeType: 'transition' },
 };
 
