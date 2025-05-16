@@ -32,7 +32,7 @@ interface PnmlNet {
 }
 
 const PnmlImporter: React.FC = () => {
-  const { addHistoryItem } = usePetriNet();  // Use addHistoryItem instead of importNetFromData
+  const { state, dispatch } = usePetriNet();  // Use state and dispatch instead of addHistoryItem
   const [importing, setImporting] = useState(false);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -141,12 +141,15 @@ const PnmlImporter: React.FC = () => {
       // Additional properties if needed
     }));
 
-    // Import the converted net using addHistoryItem instead of importNetFromData
-    addHistoryItem({
-      name: `Imported PNML Net ${new Date().toLocaleString()}`,
-      graph: {
-        nodes,
-        edges
+    // Use dispatch to add the imported net to history
+    dispatch({
+      type: 'ADD_HISTORY_ITEM',
+      payload: {
+        name: `Imported PNML Net ${new Date().toLocaleString()}`,
+        graph: {
+          nodes,
+          edges
+        }
       }
     });
   };
