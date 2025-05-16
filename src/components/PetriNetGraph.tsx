@@ -1,7 +1,12 @@
-
 import React, { useRef, useEffect } from "react";
 import { usePetriNet } from "@/contexts/PetriNetContext";
 import cytoscape from "cytoscape";
+import fcose from "cytoscape-fcose";
+
+// Register the fcose layout algorithm with cytoscape
+if (!cytoscape.layouts.hasOwnProperty('fcose')) {
+  cytoscape.use(fcose);
+}
 
 const PetriNetGraph: React.FC = () => {
   const { state, stopSimulation } = usePetriNet();
@@ -57,7 +62,9 @@ const PetriNetGraph: React.FC = () => {
               'arrow-scale': 1,
               'line-color': '#60a5fa',
               'target-arrow-color': '#60a5fa',
-              'width': 2
+              'width': 2,
+              'control-point-step-size': 40, // Helps curves be more pronounced
+              'edge-distances': 'intersection' // Start and end at node boundaries
             }
           },
           {
@@ -103,17 +110,35 @@ const PetriNetGraph: React.FC = () => {
               'border-color': '#f59e0b',
               'border-style': 'dashed'
             }
+          },
+          {
+            selector: 'edge.parallel',
+            style: {
+              'curve-style': 'unbundled-bezier',
+              'control-point-distances': [40],
+              'control-point-weights': [0.5]
+            }
           }
         ],
         layout: {
-          name: 'breadthfirst',
-          directed: true,
-          padding: 50,
-          spacingFactor: 1.5
+          name: 'fcose', // Use the fcose layout algorithm instead of breadthfirst
+          idealEdgeLength: 120,
+          nodeSeparation: 100,
+          randomize: false,
+          animate: false,
+          padding: 60,
+          nodeRepulsion: 6000,
+          edgeElasticity: 0.45,
+          gravity: 0.25,
+          quality: 'proof',
+          // Important settings for avoiding overlaps
+          nodeDimensionsIncludeLabels: true,
+          preventOverlap: true,
+          packComponents: false
         },
-        wheelSensitivity: 0.2,
-        minZoom: 0.5,
-        maxZoom: 2
+        wheelSensitivity: 0.4, // Increased for better zoom control
+        minZoom: 0.3,
+        maxZoom: 2.5
       });
       
       // Add interaction for better UX
@@ -139,6 +164,48 @@ const PetriNetGraph: React.FC = () => {
       };
     }
   }, []);
+  
+  // Function to detect and mark parallel edges
+  const markParallelEdges = (cy: any) => {
+    // Create a map to track edges between the same nodes
+    const edgePairs = new Map();
+    
+    // Collect all edges
+    cy.edges().forEach((edge: any) => {
+      const sourceId = edge.source().id();
+      const targetId = edge.target().id();
+      const pairKey = `${sourceId}-${targetId}`;
+      const reversePairKey = `${targetId}-${sourceId}`;
+      
+      if (edgePairs.has(pairKey)) {
+        edgePairs.get(pairKey).push(edge);
+      } else if (edgePairs.has(reversePairKey)) {
+        edgePairs.get(reversePairKey).push(edge);
+      } else {
+        edgePairs.set(pairKey, [edge]);
+      }
+    });
+    
+    // Mark edges as parallel if there's more than one between the same nodes
+    edgePairs.forEach((edges) => {
+      if (edges.length > 1) {
+        edges.forEach((edge: any, i: number) => {
+          edge.addClass('parallel');
+          
+          // Apply different curvatures for parallel edges
+          if (i % 2 === 0) {
+            edge.style({
+              'control-point-distances': [40 * (i + 1)]
+            });
+          } else {
+            edge.style({
+              'control-point-distances': [-40 * (i + 1)]
+            });
+          }
+        });
+      }
+    });
+  };
   
   // Update graph elements
   useEffect(() => {
@@ -173,11 +240,21 @@ const PetriNetGraph: React.FC = () => {
       // Apply layout if elements exist
       if (elements.length > 0) {
         cy.layout({ 
-          name: 'breadthfirst',
-          directed: true,
-          padding: 50,
-          spacingFactor: 1.5
+          name: 'fcose',
+          idealEdgeLength: 120,
+          nodeSeparation: 100,
+          randomize: false,
+          animate: false,
+          padding: 60,
+          nodeRepulsion: 6000,
+          edgeElasticity: 0.45,
+          quality: 'proof',
+          nodeDimensionsIncludeLabels: true,
+          preventOverlap: true
         }).run();
+        
+        // Mark parallel edges after layout is applied
+        markParallelEdges(cy);
         
         cy.fit(undefined, 50);
         cy.center();
