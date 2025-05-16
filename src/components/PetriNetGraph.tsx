@@ -4,7 +4,8 @@ import cytoscape from "cytoscape";
 import fcose from "cytoscape-fcose";
 
 // Register the fcose layout algorithm with cytoscape
-if (!cytoscape.layouts.hasOwnProperty('fcose')) {
+// Fix the registration process to avoid the hasOwnProperty error
+if (typeof cytoscape('layout', 'fcose') !== 'function') {
   cytoscape.use(fcose);
 }
 
