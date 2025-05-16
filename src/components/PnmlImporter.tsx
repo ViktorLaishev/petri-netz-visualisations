@@ -32,7 +32,7 @@ interface PnmlNet {
 }
 
 const PnmlImporter: React.FC = () => {
-  const petriNet = usePetriNet();  // Use the entire context object
+  const { dispatch } = usePetriNet();  // Extract just the dispatch function
   const [importing, setImporting] = useState(false);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -48,7 +48,7 @@ const PnmlImporter: React.FC = () => {
         const parsedNet = parsePnml(xmlDoc);
         
         if (parsedNet) {
-          convertAndImportNet(parsedNet);
+          convertAndImportNet(parsedNet, file.name);
           toast.success(`Imported Petri net: ${file.name}`);
         } else {
           toast.error("Failed to parse PNML file. Invalid format.");
@@ -121,7 +121,7 @@ const PnmlImporter: React.FC = () => {
     return { id: netId, type: netType, places, transitions, arcs };
   };
 
-  const convertAndImportNet = (pnmlNet: PnmlNet) => {
+  const convertAndImportNet = (pnmlNet: PnmlNet, fileName: string) => {
     // Convert PNML format to the application's graph format
     const nodes = [
       ...pnmlNet.places.map(place => ({
@@ -141,11 +141,20 @@ const PnmlImporter: React.FC = () => {
       // Additional properties if needed
     }));
 
-    // Add the imported net to history
-    petriNet.savePetriNet(`Imported PNML Net ${new Date().toLocaleString()}`);
-
-    // After saving, update the current graph
-    petriNet.loadPetriNet(petriNet.savedNets[petriNet.savedNets.length - 1].id);
+    // Generate a unique net name based on the file name and timestamp
+    const netName = `${fileName.replace('.pnml', '')} (${new Date().toLocaleTimeString()})`;
+    
+    // Directly update the state with the new graph using ADD_HISTORY_ITEM
+    dispatch({
+      type: 'ADD_HISTORY_ITEM',
+      payload: {
+        name: netName,
+        graph: {
+          nodes,
+          edges
+        }
+      }
+    });
   };
 
   return (
