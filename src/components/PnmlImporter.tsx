@@ -32,7 +32,8 @@ interface PnmlNet {
 }
 
 const PnmlImporter: React.FC = () => {
-  const { dispatch } = usePetriNet();  // Extract just the dispatch function
+  // Get both state and all methods from the context
+  const petriNetContext = usePetriNet();
   const [importing, setImporting] = useState(false);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -135,25 +136,38 @@ const PnmlImporter: React.FC = () => {
       }))
     ];
 
-    const edges = pnmlNet.arcs.map(arc => ({
+    // Create edges with unique IDs to avoid overlapping visualizations
+    const edges = pnmlNet.arcs.map((arc, index) => ({
       source: arc.source,
       target: arc.target,
-      // Additional properties if needed
+      id: arc.id || `edge-${index}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
     }));
 
     // Generate a unique net name based on the file name and timestamp
     const netName = `${fileName.replace('.pnml', '')} (${new Date().toLocaleTimeString()})`;
     
-    // Directly update the state with the new graph using ADD_HISTORY_ITEM
-    dispatch({
-      type: 'ADD_HISTORY_ITEM',
-      payload: {
-        name: netName,
-        graph: {
-          nodes,
-          edges
+    // Use the savePetriNet method which already handles proper state updates
+    petriNetContext.savePetriNet(netName);
+    
+    // Now update the current graph with the imported data
+    petriNetContext.reset(); // Clear existing graph
+    
+    // Add nodes and edges manually
+    nodes.forEach(node => {
+      if (node.type === 'place') {
+        petriNetContext.addPlace(node.id);
+        // Set tokens if needed
+        if (node.tokens) {
+          // Find a way to set tokens - may need to enhance the context API
         }
+      } else if (node.type === 'transition') {
+        petriNetContext.addTransition(node.id);
       }
+    });
+    
+    // Add connections
+    edges.forEach(edge => {
+      petriNetContext.connectNodes(edge.source, edge.target);
     });
   };
 
