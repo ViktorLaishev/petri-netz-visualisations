@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect } from "react";
 import { usePetriNet } from "@/contexts/PetriNetContext";
 import cytoscape from "cytoscape";
@@ -5,7 +6,7 @@ import fcose from "cytoscape-fcose";
 
 // Register the fcose layout algorithm with cytoscape
 // Fix the registration process to avoid the hasOwnProperty error
-if (typeof cytoscape('layout', 'fcose') !== 'function') {
+if (!cytoscape.layouts || !Object.prototype.hasOwnProperty.call(cytoscape.layouts, 'fcose')) {
   cytoscape.use(fcose);
 }
 
@@ -122,22 +123,23 @@ const PetriNetGraph: React.FC = () => {
           }
         ],
         layout: {
-          name: 'fcose', // Use the fcose layout algorithm instead of breadthfirst
-          idealEdgeLength: 120,
-          nodeSeparation: 100,
-          randomize: false,
+          name: 'fcose', 
+          idealEdgeLength: 150, // Increased for better spacing
+          nodeSeparation: 120,  // Increased for better spacing
+          randomize: true,      // Randomize initial positions for better layout
           animate: false,
-          padding: 60,
-          nodeRepulsion: 6000,
-          edgeElasticity: 0.45,
+          padding: 80,           // Increased padding
+          nodeRepulsion: 8000,   // Increased to push nodes further apart
+          edgeElasticity: 0.55,  // Increased to make edges more flexible
           gravity: 0.25,
           quality: 'proof',
           // Important settings for avoiding overlaps
           nodeDimensionsIncludeLabels: true,
           preventOverlap: true,
-          packComponents: false
+          packComponents: true,  // Pack disconnected components together
+          fit: true              // Fit the graph to the viewport
         },
-        wheelSensitivity: 0.4, // Increased for better zoom control
+        wheelSensitivity: 0.5, // Adjusted for better zoom control
         minZoom: 0.3,
         maxZoom: 2.5
       });
@@ -196,17 +198,20 @@ const PetriNetGraph: React.FC = () => {
           // Apply different curvatures for parallel edges
           if (i % 2 === 0) {
             edge.style({
-              'control-point-distances': [40 * (i + 1)]
+              'control-point-distances': [60 * (i + 1)] // Increased control point distance
             });
           } else {
             edge.style({
-              'control-point-distances': [-40 * (i + 1)]
+              'control-point-distances': [-60 * (i + 1)] // Increased control point distance
             });
           }
         });
       }
     });
   };
+  
+  // Generate a unique ID for each net to ensure different layouts
+  const graphId = useRef(Date.now().toString());
   
   // Update graph elements
   useEffect(() => {
@@ -226,9 +231,9 @@ const PetriNetGraph: React.FC = () => {
             node.tokens && node.tokens > 0 ? 'has-token' : ''
           ].filter(Boolean).join(' ')
         })),
-        ...graph.edges.map(edge => ({
+        ...graph.edges.map((edge, index) => ({
           data: { 
-            id: `${edge.source}-${edge.target}`, 
+            id: `${edge.source}-${edge.target}-${index}`, // Ensure unique edge IDs
             source: edge.source, 
             target: edge.target
           }
@@ -238,26 +243,34 @@ const PetriNetGraph: React.FC = () => {
       cy.elements().remove();
       cy.add(elements);
       
+      // Generate new graph ID when nodes change to ensure different layouts
+      if (graph.nodes.length > 0) {
+        graphId.current = Date.now().toString();
+      }
+      
       // Apply layout if elements exist
       if (elements.length > 0) {
         cy.layout({ 
           name: 'fcose',
-          idealEdgeLength: 120,
-          nodeSeparation: 100,
-          randomize: false,
+          idealEdgeLength: 150,
+          nodeSeparation: 120,
+          randomize: true, // Use randomization to get different layouts each time
           animate: false,
-          padding: 60,
-          nodeRepulsion: 6000,
-          edgeElasticity: 0.45,
+          padding: 80,
+          nodeRepulsion: 8000,
+          edgeElasticity: 0.55,
           quality: 'proof',
           nodeDimensionsIncludeLabels: true,
-          preventOverlap: true
+          preventOverlap: true,
+          // Use the graph ID as a random seed to get different layouts for different nets
+          randomSeed: graphId.current 
         }).run();
         
         // Mark parallel edges after layout is applied
         markParallelEdges(cy);
         
-        cy.fit(undefined, 50);
+        // Fit and center the graph with padding
+        cy.fit(undefined, 60);
         cy.center();
       }
 
