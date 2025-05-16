@@ -31,6 +31,7 @@ import LogTable from "@/components/LogTable";
 import TokenCounter from "@/components/TokenCounter";
 import SavePetriNetDialog from "@/components/SavePetriNetDialog";
 import ThemeToggle from "@/components/ThemeToggle";
+import PnmlImporter from "@/components/PnmlImporter";
 
 const Index = () => {
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
@@ -93,6 +94,7 @@ const Index = () => {
             </div>
             <div className="flex gap-2 items-center">
               <ThemeToggle />
+              <PnmlImporter />
               <Link to="/event-log">
                 <Button variant="outline" className="gap-2">
                   <FileText className="h-4 w-4" />
