@@ -9,6 +9,8 @@ interface PnmlPlace {
   id: string;
   name?: string;
   initialMarking?: number;
+  isStartPlace?: boolean;
+  isEndPlace?: boolean;
 }
 
 interface PnmlTransition {
@@ -89,8 +91,12 @@ const PnmlImporter: React.FC = () => {
       if (markingElement && markingElement.textContent) {
         initialMarking = parseInt(markingElement.textContent, 10) || 0;
       }
+
+      // Identify start and end places based on connections and markup
+      const isStartPlace = place.hasAttribute("initialMarking") && !place.hasAttribute("targetof");
+      const isEndPlace = !place.hasAttribute("initialMarking") && !place.hasAttribute("sourceof");
       
-      return { id, name, initialMarking };
+      return { id, name, initialMarking, isStartPlace, isEndPlace };
     });
 
     // Parse transitions
@@ -123,52 +129,66 @@ const PnmlImporter: React.FC = () => {
   };
 
   const convertAndImportNet = (pnmlNet: PnmlNet, fileName: string) => {
-    // Convert PNML format to the application's graph format
-    const nodes = [
-      ...pnmlNet.places.map(place => ({
-        id: place.id,
-        type: 'place',
-        tokens: place.initialMarking || 0
-      })),
-      ...pnmlNet.transitions.map(transition => ({
-        id: transition.id,
-        type: 'transition'
-      }))
-    ];
-
-    // Create edges with unique IDs to avoid overlapping visualizations
-    const edges = pnmlNet.arcs.map((arc, index) => ({
-      source: arc.source,
-      target: arc.target,
-      id: arc.id || `edge-${index}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
-    }));
-
+    // Find start and end places
+    const startPlace = pnmlNet.places.find(p => p.isStartPlace || p.initialMarking > 0);
+    const endPlace = pnmlNet.places.find(p => p.isEndPlace);
+    
+    // Set default start place as the first place if none is marked
+    const startPlaceId = startPlace ? startPlace.id : (pnmlNet.places[0]?.id || 'P0');
+    
+    // Set default end place as the last place if none is marked
+    const endPlaceId = endPlace ? endPlace.id : (pnmlNet.places[pnmlNet.places.length - 1]?.id || 'P_out');
+    
     // Generate a unique net name based on the file name and timestamp
     const netName = `${fileName.replace('.pnml', '')} (${new Date().toLocaleTimeString()})`;
     
-    // Use the savePetriNet method which already handles proper state updates
+    // Create a completely new net (this will be our active net)
     petriNetContext.savePetriNet(netName);
     
-    // Now update the current graph with the imported data
-    petriNetContext.reset(); // Clear existing graph
+    // Clear the existing graph and replace with the imported data
+    petriNetContext.reset();
     
-    // Add nodes and edges manually
-    nodes.forEach(node => {
-      if (node.type === 'place') {
-        petriNetContext.addPlace(node.id);
-        // Set tokens if needed
-        if (node.tokens) {
-          // Find a way to set tokens - may need to enhance the context API
-        }
-      } else if (node.type === 'transition') {
-        petriNetContext.addTransition(node.id);
+    // First add all places and transitions to ensure they exist
+    pnmlNet.places.forEach(place => {
+      // If this is the start place, add it as P0
+      if (place.id === startPlaceId) {
+        // Add the start place as P0
+        petriNetContext.addPlace('P0');
+      }
+      // If this is the end place, add it as P_out
+      else if (place.id === endPlaceId) {
+        // Add the end place as P_out
+        petriNetContext.addPlace('P_out');
+      }
+      else {
+        petriNetContext.addPlace(place.id);
       }
     });
     
-    // Add connections
-    edges.forEach(edge => {
-      petriNetContext.connectNodes(edge.source, edge.target);
+    pnmlNet.transitions.forEach(transition => {
+      petriNetContext.addTransition(transition.id);
     });
+    
+    // Now add all connections, remapping start and end place IDs as needed
+    pnmlNet.arcs.forEach(arc => {
+      let sourceId = arc.source === startPlaceId ? 'P0' : arc.source;
+      let targetId = arc.target === endPlaceId ? 'P_out' : arc.target;
+      
+      // Connect the nodes, taking care to use the remapped IDs
+      petriNetContext.connectNodes(sourceId, targetId);
+    });
+    
+    // Set initial token to the start place (P0)
+    const updatedNodes = petriNetContext.state.graph.nodes.map(node => {
+      if (node.id === 'P0') {
+        return { ...node, tokens: 1 };
+      }
+      return node;
+    });
+    
+    // We need to update the current net ID so it remains as the active net
+    petriNetContext.savePetriNet(netName);
+    petriNetContext.loadPetriNet(petriNetContext.state.currentNetId!);
   };
 
   return (
