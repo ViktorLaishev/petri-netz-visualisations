@@ -51,9 +51,6 @@ const PnmlImporter: React.FC = () => {
         const parsedNet = parsePnml(xmlDoc);
         
         if (parsedNet) {
-          // First reset the petri net to ensure we're starting fresh
-          petriNetContext.reset();
-          // Now import the PNML model
           convertAndImportNet(parsedNet, file.name);
           toast.success(`Imported Petri net: ${file.name}`);
         } else {
@@ -146,8 +143,10 @@ const PnmlImporter: React.FC = () => {
     const netName = `${fileName.replace('.pnml', '')} (${new Date().toLocaleTimeString()})`;
     
     // Create a completely new net (this will be our active net)
-    petriNetContext.reset(); // Reset again to ensure we're completely clear
     petriNetContext.savePetriNet(netName);
+    
+    // Clear the existing graph and replace with the imported data
+    petriNetContext.reset();
     
     // First add all places and transitions to ensure they exist
     pnmlNet.places.forEach(place => {
@@ -180,15 +179,16 @@ const PnmlImporter: React.FC = () => {
     });
     
     // Set initial token to the start place (P0)
-    petriNetContext.state.graph.nodes.forEach(node => {
+    const updatedNodes = petriNetContext.state.graph.nodes.map(node => {
       if (node.id === 'P0') {
-        petriNetContext.setTokens(node.id, 1);
+        return { ...node, tokens: 1 };
       }
+      return node;
     });
     
     // We need to update the current net ID so it remains as the active net
     petriNetContext.savePetriNet(netName);
-    petriNetContext.loadPetriNet(netName);
+    petriNetContext.loadPetriNet(petriNetContext.state.currentNetId!);
   };
 
   return (
