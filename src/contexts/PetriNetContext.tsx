@@ -759,18 +759,11 @@ const rulesMap: Record<
   },
 };
 
-// Create initial graph - ensuring P0 and P_out exist
+// Create initial graph - returning empty arrays instead of predefined nodes
 const initialGraph = (): Graph => {
   return {
-    nodes: [
-      { id: "P0", type: "place", tokens: 1, description: "Start Node" },
-      { id: "P_out", type: "place", tokens: 0, description: "End Node" },
-      { id: "T0", type: "transition", description: "Transition Node" },
-    ],
-    edges: [
-      { source: "P0", target: "T0" },
-      { source: "T0", target: "P_out" },
-    ],
+    nodes: [],
+    edges: [],
   };
 };
 
@@ -1647,8 +1640,6 @@ export const PetriNetProvider: React.FC<{ children: ReactNode }> = ({
       }),
     setTokenFlow: (start: string, end: string) =>
       dispatch({ type: "SET_TOKEN_FLOW", start, end }),
-    startSimulation: () => dispatch({ type: "START_SIMULATION" }),
-    stopSimulation: () => dispatch({ type: "STOP_SIMULATION" }),
     centerGraph: () => dispatch({ type: "CENTER_GRAPH" }),
     downloadLog: () => {
       const headers = "ID,Timestamp,Action\n";
