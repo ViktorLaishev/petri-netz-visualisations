@@ -1542,75 +1542,80 @@ export const PetriNetProvider: React.FC<{ children: ReactNode }> = ({
     );
 
     if (!startPlace || !endPlace) {
-      toast.error("P0 or P_out missing from the graph");
-      return [];
+      throw new Error("P0 or P_out missing from the graph");
     }
 
     const visitedPaths = new Set<string>();
     const allPaths: Path[] = [];
+    const MAX_PATH_LENGTH = 100; // Safety limit to prevent infinite recursion
+    const MAX_PATHS = 1000; // Maximum number of paths to generate
 
-    const dfs = (currentId: string, currentPath: PathNode[]) => {
+    const dfs = (
+      currentId: string, 
+      currentPath: PathNode[], 
+      visited: Set<string> = new Set()
+    ) => {
+      // Safety check 1: Prevent stack overflow by limiting path length
+      if (currentPath.length > MAX_PATH_LENGTH) {
+        return;
+      }
+      
+      // Safety check 2: Prevent too many paths
+      if (allPaths.length >= MAX_PATHS) {
+        return;
+      }
+
+      // Safety check 3: Detect cycles
+      if (visited.has(currentId)) {
+        return;
+      }
+      
       const currentNode = graph.nodes.find((n) => n.id === currentId);
       if (!currentNode) return;
+      
+      // Clone visited set for this branch (don't modify the parent's set)
+      const newVisited = new Set(visited);
+      newVisited.add(currentId);
 
+      let newPath = [...currentPath];
       if (currentNode.type === "place") {
-        currentPath = [...currentPath, { id: currentId, type: "place" }];
+        newPath = [...newPath, { id: currentId, type: "place" }];
       }
 
       if (currentId === endPlace.id) {
-        const pathKey = currentPath.map((n) => n.id).join("->");
+        const pathKey = newPath.map((n) => n.id).join("->");
         if (!visitedPaths.has(pathKey)) {
           visitedPaths.add(pathKey);
-          allPaths.push({ sequence: currentPath });
+          allPaths.push({ sequence: newPath });
         }
         return;
       }
 
       const outgoingEdges = graph.edges.filter((e) => e.source === currentId);
       for (const edge of outgoingEdges) {
-        dfs(edge.target, [...currentPath]);
+        dfs(edge.target, newPath, newVisited);
       }
     };
 
-    dfs(startPlace.id, []);
-
-    return allPaths;
-  };
-
-  const findPathsFromNode = (
-    graph: Graph,
-    nodeId: string,
-    visited: string[]
-  ): Path[] => {
-    if (visited.includes(nodeId)) {
-      return [];
+    try {
+      dfs(startPlace.id, [], new Set());
+      
+      // If we found too many paths, add a warning path
+      if (allPaths.length >= MAX_PATHS) {
+        allPaths.push({
+          sequence: [
+            { id: "Warning", type: "place" },
+            { id: "TooManyPaths", type: "transition" },
+            { id: "LimitReached", type: "place" }
+          ]
+        });
+      }
+      
+      return allPaths;
+    } catch (error) {
+      console.error("Path generation error:", error);
+      throw error;
     }
-
-    const node = graph.nodes.find((n) => n.id === nodeId);
-    if (!node) return [];
-
-    const newVisited = [...visited, nodeId];
-    const outgoingEdges = graph.edges.filter((edge) => edge.source === nodeId);
-
-    if (outgoingEdges.length === 0) {
-      return [
-        {
-          sequence: newVisited.map((id) => {
-            const n = graph.nodes.find((n) => n.id === id);
-            return { id, type: n?.type || "place" };
-          }),
-        },
-      ];
-    }
-
-    const paths: Path[] = [];
-
-    for (const edge of outgoingEdges) {
-      const targetPaths = findPathsFromNode(graph, edge.target, newVisited);
-      paths.push(...targetPaths);
-    }
-
-    return paths;
   };
 
   const value = {
@@ -1662,6 +1667,10 @@ export const PetriNetProvider: React.FC<{ children: ReactNode }> = ({
       try {
         const paths = await generateAllPaths(state.graph);
         const timestamp = Date.now();
+
+        if (paths.length === 0) {
+          throw new Error("No valid paths found from P0 to P_out");
+        }
 
         // Assign additional metadata: probability and synthetic timestamps
         const enrichedPaths: Path[] = paths.map((p, i) => {
