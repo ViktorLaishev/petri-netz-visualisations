@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, useState } from "react";
 import { usePetriNet } from "@/contexts/PetriNetContext";
 import cytoscape from "cytoscape";
@@ -12,7 +11,7 @@ if (!cytoscape.layouts || !Object.prototype.hasOwnProperty.call(cytoscape.layout
 }
 
 const PetriNetGraph: React.FC = () => {
-  const { state, stopSimulation } = usePetriNet();
+  const { state } = usePetriNet();
   const { graph, simulationActive, animatingTokens } = state;
   
   const cyRef = useRef<HTMLDivElement>(null);
