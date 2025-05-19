@@ -3,14 +3,16 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Download } from "lucide-react";
+import { ArrowLeft, Download, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { usePetriNet } from "@/contexts/PetriNetContext";
 import EventLogTable from "@/components/EventLogTable";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function EventLog() {
   const { state, generateEventLog, downloadEventLog } = usePetriNet();
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
 
   // Generate event log on component mount if it's empty
   useEffect(() => {
@@ -21,11 +23,16 @@ export default function EventLog() {
 
   const handleRegenerateLog = async () => {
     setIsGenerating(true);
+    setGenerationError(null);
     try {
       await generateEventLog();
       toast.success("Event log generated successfully");
     } catch (error) {
       console.error("Failed to generate event log:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+      setGenerationError(
+        "Failed to generate event log. Please ensure your Petri net has a path from P0 to P_out."
+      );
       toast.error("Failed to generate event log");
     } finally {
       setIsGenerating(false);
@@ -58,6 +65,13 @@ export default function EventLog() {
           </div>
         </header>
 
+        {generationError && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>{generationError}</AlertDescription>
+          </Alert>
+        )}
+
         <Card>
           <CardHeader className="pb-0">
             <div className="flex justify-between items-center">
@@ -74,6 +88,10 @@ export default function EventLog() {
                   variant="outline" 
                   className="gap-2"
                   onClick={() => {
+                    if (state.eventLog.paths.length === 0) {
+                      toast.error("No event log to download. Please generate the log first.");
+                      return;
+                    }
                     downloadEventLog();
                     toast.success("Event log downloaded");
                   }}
