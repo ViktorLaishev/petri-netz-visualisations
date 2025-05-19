@@ -10,7 +10,8 @@ import {
 } from "@/components/ui/table";
 import { usePetriNet } from "@/contexts/PetriNetContext";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, HelpCircle } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const EventLogTable: React.FC = () => {
   const { state } = usePetriNet();
@@ -20,6 +21,26 @@ const EventLogTable: React.FC = () => {
   const hasP0 = graph.nodes.some(node => node.id === "P0");
   const hasPOut = graph.nodes.some(node => node.id === "P_out");
   const missingRequiredNodes = !hasP0 || !hasPOut;
+  
+  // Check for potential cycles (simple heuristic)
+  const hasPotentialCycles = (): boolean => {
+    // Simple check: if there are nodes with both incoming and outgoing connections to the same node
+    // or if the same node appears in a path from itself
+    const nodesWithPotentialCycles = new Set<string>();
+    
+    for (const edge1 of graph.edges) {
+      for (const edge2 of graph.edges) {
+        if (edge1.source === edge2.target && edge1.target === edge2.source) {
+          nodesWithPotentialCycles.add(edge1.source);
+          nodesWithPotentialCycles.add(edge1.target);
+        }
+      }
+    }
+    
+    return nodesWithPotentialCycles.size > 0;
+  };
+  
+  const potentialCycleDetected = hasPotentialCycles();
 
   if (eventLog.paths.length === 0) {
     return (
@@ -30,6 +51,12 @@ const EventLogTable: React.FC = () => {
             <p>Event log generation requires both P0 and P_out nodes in your Petri net.</p>
             {!hasP0 && <p className="text-sm">Missing: P0 (start node)</p>}
             {!hasPOut && <p className="text-sm">Missing: P_out (end node)</p>}
+          </div>
+        ) : potentialCycleDetected ? (
+          <div className="flex flex-col items-center gap-2">
+            <AlertCircle className="h-6 w-6 text-amber-500" />
+            <p>Your Petri net may contain cycles, which can cause problems during event log generation.</p>
+            <p className="text-sm">Try simplifying your model or ensuring there are no loops between nodes.</p>
           </div>
         ) : (
           "No event paths generated yet. Please generate the event log first."
@@ -46,7 +73,23 @@ const EventLogTable: React.FC = () => {
             <TableRow>
               <TableHead className="w-[80px]">Path ID</TableHead>
               <TableHead>Sequence</TableHead>
-              <TableHead className="w-[120px]">Length</TableHead>
+              <TableHead className="w-[120px]">
+                <div className="flex items-center gap-1">
+                  Length
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpCircle className="h-4 w-4 opacity-70" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="w-[200px] text-xs">
+                          The number of nodes in this path. Paths with too many nodes may cause performance issues.
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+              </TableHead>
               <TableHead className="w-[120px]">Start</TableHead>
               <TableHead className="w-[120px]">End</TableHead>
             </TableRow>

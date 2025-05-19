@@ -29,10 +29,17 @@ export default function EventLog() {
       toast.success("Event log generated successfully");
     } catch (error) {
       console.error("Failed to generate event log:", error);
-      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
-      setGenerationError(
-        "Failed to generate event log. Please ensure your Petri net has a path from P0 to P_out."
-      );
+      if (error instanceof RangeError && error.message.includes("Maximum call stack size exceeded")) {
+        setGenerationError(
+          "Failed to generate event log: The Petri net has too many possible paths or contains cycles. " +
+          "Try simplifying the model or ensure there are no loops in the path finding."
+        );
+      } else {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+        setGenerationError(
+          "Failed to generate event log. Please ensure your Petri net has a valid path from P0 to P_out."
+        );
+      }
       toast.error("Failed to generate event log");
     } finally {
       setIsGenerating(false);
