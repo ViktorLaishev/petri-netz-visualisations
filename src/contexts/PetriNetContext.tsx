@@ -95,8 +95,6 @@ interface PetriNetContextType {
     ruleWeights?: RuleWeight[]
   ) => void;
   setTokenFlow: (start: string, end: string) => void;
-  startSimulation: () => void;
-  stopSimulation: () => void;
   centerGraph: () => void;
   downloadLog: () => void;
   generateEventLog: () => Promise<void>;
