@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -9,6 +8,7 @@ import { usePetriNet } from "@/contexts/PetriNetContext";
 import EventLogTable from "@/components/EventLogTable";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 
 export default function EventLog() {
   const { state, generateEventLog, downloadEventLog } = usePetriNet();
