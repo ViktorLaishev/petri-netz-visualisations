@@ -1,8 +1,9 @@
 
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import { usePetriNet } from "@/contexts/PetriNetContext";
 import cytoscape from "cytoscape";
 import fcose from "cytoscape-fcose";
+import NodeDetailsDialog from "./NodeDetailsDialog";
 
 // Register the fcose layout algorithm with cytoscape
 // Fix the registration process to avoid the hasOwnProperty error
@@ -16,6 +17,10 @@ const PetriNetGraph: React.FC = () => {
   
   const cyRef = useRef<HTMLDivElement>(null);
   const cyInstanceRef = useRef<any>(null);
+  
+  // State for node details dialog
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   
   // Initialize cytoscape instance
   useEffect(() => {
@@ -158,6 +163,13 @@ const PetriNetGraph: React.FC = () => {
           const connectedEdges = node.connectedEdges();
           connectedEdges.removeClass('active-path');
         });
+        
+        // Handle double-click on place nodes to open details dialog
+        cyInstanceRef.current.on('dblclick', 'node.place', function(e: any) {
+          const node = e.target;
+          setSelectedNodeId(node.id());
+          setIsDialogOpen(true);
+        });
       }
       
       return () => {
@@ -224,11 +236,13 @@ const PetriNetGraph: React.FC = () => {
           data: { 
             id: node.id, 
             label: node.id,
-            tokens: node.tokens || 0
+            tokens: node.tokens || 0,
+            description: node.description || "" // Include description in data
           },
           classes: [
             node.type,
-            node.tokens && node.tokens > 0 ? 'has-token' : ''
+            node.tokens && node.tokens > 0 ? 'has-token' : '',
+            node.description ? 'has-description' : ''
           ].filter(Boolean).join(' ')
         })),
         ...graph.edges.map((edge, index) => ({
@@ -429,10 +443,19 @@ const PetriNetGraph: React.FC = () => {
   }, []);
   
   return (
-    <div 
-      ref={cyRef} 
-      className="w-full h-full rounded-md bg-white dark:bg-slate-900 overflow-hidden"
-    />
+    <>
+      <div 
+        ref={cyRef} 
+        className="w-full h-full rounded-md bg-white dark:bg-slate-900 overflow-hidden"
+      />
+      
+      {/* Node details dialog */}
+      <NodeDetailsDialog 
+        nodeId={selectedNodeId}
+        open={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+      />
+    </>
   );
 };
 
