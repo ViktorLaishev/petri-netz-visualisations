@@ -23,7 +23,7 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from "@/components/ui/tooltip";
-import { RefreshCw, Undo, FileText, Save, FolderOpen, Play, Square, Maximize, ZoomIn, HelpCircle, Minimize } from "lucide-react";
+import { RefreshCw, Undo, FileText, Save, FolderOpen, Maximize, ZoomIn, HelpCircle, Minimize } from "lucide-react";
 import { toast } from "sonner";
 import PetriNetGraph from "@/components/PetriNetGraph";
 import { usePetriNet } from "@/contexts/PetriNetContext";
@@ -128,8 +128,6 @@ const Index = () => {
                 <div className="flex justify-between items-center">
                   <CardTitle>Petri Net Visualization</CardTitle>
                   <div className="flex gap-2">
-                    <StartSimulationButton />
-                    <StopSimulationButton />
                     <Button 
                       variant="outline" 
                       size="sm" 
@@ -453,7 +451,6 @@ const FlowControls = () => {
         >
           Set Token Flow
         </Button>
-        <StartSimulationButton className="w-full" />
       </div>
     </div>
   );
@@ -708,24 +705,6 @@ const ResetButton = () => {
   );
 };
 
-const StartSimulationButton = ({ className = "" }) => {
-  const { startSimulation } = usePetriNet();
-  
-  return (
-    <Button 
-      variant="default" 
-      className={`bg-green-600 hover:bg-green-700 ${className}`}
-      onClick={() => {
-        startSimulation();
-        toast.success("Simulation started");
-      }}
-    >
-      <Play className="h-4 w-4 mr-2" />
-      Start Simulation
-    </Button>
-  );
-};
-
 const CenterGraphButton = () => {
   const { centerGraph } = usePetriNet();
   
@@ -758,23 +737,6 @@ const DownloadLogButton = () => {
     >
       <FileText className="h-4 w-4 mr-2" />
       Download CSV
-    </Button>
-  );
-};
-
-const StopSimulationButton = ({ className = "" }) => {
-  const { stopSimulation } = usePetriNet();
-  return (
-    <Button
-      variant="destructive"
-      className={`bg-red-600 hover:bg-red-700 ${className}`}
-      onClick={() => {
-        stopSimulation();
-        // Don't toast here; feedback provided by animation change
-      }}
-    >
-      <Square className="h-4 w-4 mr-2" />
-      Stop Simulation
     </Button>
   );
 };
