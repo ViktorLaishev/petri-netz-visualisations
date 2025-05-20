@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,7 @@ import TokenCounter from "@/components/TokenCounter";
 import SavePetriNetDialog from "@/components/SavePetriNetDialog";
 import ThemeToggle from "@/components/ThemeToggle";
 import PnmlImporter from "@/components/PnmlImporter";
+import UserManualDialog from "@/components/UserManualDialog";
 
 const Index = () => {
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
@@ -93,6 +95,7 @@ const Index = () => {
               <p className="text-slate-500 dark:text-slate-400">Interactive visualization tool for Petri nets and token flows</p>
             </div>
             <div className="flex gap-2 items-center">
+              <UserManualDialog />
               <ThemeToggle />
               <PnmlImporter />
               <Link to="/event-log">
