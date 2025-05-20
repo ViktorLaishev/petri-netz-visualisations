@@ -44,7 +44,7 @@ const UserManualDialog = ({ trigger }: UserManualDialogProps) => {
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="rules">Rules</TabsTrigger>
-            <TabsTrigger value="flow">Token Flow</TabsTrigger>
+            <TabsTrigger value="event-log">Event Log</TabsTrigger>
             <TabsTrigger value="batch">Batch Operations</TabsTrigger>
           </TabsList>
           <ScrollArea className="h-[60vh] mt-2 pr-4">
@@ -105,30 +105,50 @@ const UserManualDialog = ({ trigger }: UserManualDialogProps) => {
               </div>
             </TabsContent>
             
-            <TabsContent value="flow" className="space-y-4">
+            <TabsContent value="event-log" className="space-y-4">
               <div className="text-sm space-y-4">
-                <h3 className="text-lg font-semibold">Setting Token Flow</h3>
+                <h3 className="text-lg font-semibold">Event Log Functionality</h3>
                 <p>
-                  Token flow visualizes the movement of tokens from one place to another in the Petri net.
+                  The Event Log records and displays all actions performed on the Petri net, providing a comprehensive
+                  history of changes and operations.
+                </p>
+                <ul className="list-disc pl-5 space-y-2">
+                  <li><strong>Timestamps:</strong> Each event is recorded with a precise timestamp.</li>
+                  <li><strong>Action Type:</strong> The type of action performed (rule application, reset, etc.).</li>
+                  <li><strong>Details:</strong> Specific information about the action, such as which nodes were affected.</li>
+                  <li><strong>State Changes:</strong> Records how the Petri net state changed as a result of the action.</li>
+                </ul>
+                
+                <h3 className="text-lg font-semibold">Accessing the Event Log</h3>
+                <p>
+                  The Event Log can be accessed in two ways:
                 </p>
                 <ol className="list-decimal pl-5 space-y-2">
-                  <li>Navigate to the "Flow" tab in the control panel.</li>
-                  <li>Select a start place from the dropdown.</li>
-                  <li>Select an end place from the dropdown.</li>
-                  <li>Click "Set Token Flow" to visualize the token movement.</li>
+                  <li>Via the "Event Log" section at the bottom of the main interface, showing the most recent events.</li>
+                  <li>Through the full "Event Log" page, accessible by clicking the "View Event Log" button in the header.</li>
                 </ol>
                 
-                <h3 className="text-lg font-semibold">Interpreting Token Flow</h3>
+                <h3 className="text-lg font-semibold">Analytics Features</h3>
                 <p>
-                  The visualization will highlight the path that tokens take from the start place to the end place.
-                  Places and transitions involved in the token flow will be emphasized in the visualization.
+                  The Event Log provides valuable analytics capabilities:
                 </p>
+                <ul className="list-disc pl-5 space-y-2">
+                  <li><strong>Statistical Analysis:</strong> Analyze the frequency of different rule applications and actions.</li>
+                  <li><strong>Pattern Recognition:</strong> Identify common sequences of actions and potential optimizations.</li>
+                  <li><strong>Performance Metrics:</strong> Track how changes to the Petri net affect its structural complexity over time.</li>
+                  <li><strong>CSV Export:</strong> Download the event log as a CSV file for further analysis in external tools.</li>
+                </ul>
                 
-                <h3 className="text-lg font-semibold">Token Counter</h3>
+                <h3 className="text-lg font-semibold">Using Event Log Data</h3>
                 <p>
-                  The Token Counter section at the bottom of the page displays the current distribution of tokens 
-                  across all places in the Petri net.
+                  Event Log data can be utilized for:
                 </p>
+                <ul className="list-disc pl-5 space-y-2">
+                  <li><strong>Process Improvement:</strong> Analyzing the effectiveness of different modeling approaches.</li>
+                  <li><strong>Documentation:</strong> Providing a record of how a particular Petri net model was constructed.</li>
+                  <li><strong>Auditing:</strong> Verifying that changes were made according to specific requirements or standards.</li>
+                  <li><strong>Reporting:</strong> Generating reports on Petri net development activities and outcomes.</li>
+                </ul>
               </div>
             </TabsContent>
             
