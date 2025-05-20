@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -11,20 +10,32 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
-import { 
+import { exportPetriNetToPNML } from "@/components/PnmlExporter"; // adjust path as needed
+
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue
+  SelectValue,
 } from "@/components/ui/select";
-import { 
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
-  TooltipTrigger
+  TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { RefreshCw, Undo, FileText, Save, FolderOpen, Maximize, ZoomIn, HelpCircle, Minimize } from "lucide-react";
+import {
+  RefreshCw,
+  Undo,
+  FileText,
+  Save,
+  FolderOpen,
+  Maximize,
+  ZoomIn,
+  HelpCircle,
+  Minimize,
+} from "lucide-react";
 import { toast } from "sonner";
 import PetriNetGraph from "@/components/PetriNetGraph";
 import { usePetriNet } from "@/contexts/PetriNetContext";
@@ -51,9 +62,9 @@ const Index = () => {
 
   const toggleGraphFullscreen = () => {
     if (!graphContainerRef.current) return;
-    
+
     if (!document.fullscreenElement) {
-      graphContainerRef.current.requestFullscreen().catch(err => {
+      graphContainerRef.current.requestFullscreen().catch((err) => {
         toast.error("Error attempting to enable fullscreen mode:", err.message);
       });
       setIsGraphFullscreen(true);
@@ -70,11 +81,11 @@ const Index = () => {
     const handleFullscreenChange = () => {
       setIsGraphFullscreen(!!document.fullscreenElement);
     };
-    
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+
     return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
     };
   }, []);
 
@@ -88,11 +99,15 @@ const Index = () => {
                 Petri Net Flow Visualizer
                 {state.currentNetId && (
                   <Badge variant="outline" className="ml-3">
-                    {state.savedNets.find(net => net.id === state.currentNetId)?.name || "Unnamed Net"}
+                    {state.savedNets.find(
+                      (net) => net.id === state.currentNetId
+                    )?.name || "Unnamed Net"}
                   </Badge>
                 )}
               </h1>
-              <p className="text-slate-500 dark:text-slate-400">Interactive visualization tool for Petri nets and token flows</p>
+              <p className="text-slate-500 dark:text-slate-400">
+                Interactive visualization tool for Petri nets and token flows
+              </p>
             </div>
             <div className="flex gap-2 items-center">
               <UserManualDialog />
@@ -110,20 +125,32 @@ const Index = () => {
                   Saved Nets
                 </Button>
               </Link>
-              <Button variant="default" className="gap-2" onClick={openSaveDialog}>
+              <Button
+                variant="default"
+                className="gap-2"
+                onClick={openSaveDialog}
+              >
                 <Save className="h-4 w-4" />
                 Save
+              </Button>
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={() => exportPetriNetToPNML(state.graph)}
+              >
+                <Save className="h-4 w-4" />
+                Export PNML
               </Button>
             </div>
           </div>
         </header>
-        
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left Panel - Controls */}
           <div className="lg:col-span-3">
             <ControlPanel />
           </div>
-          
+
           {/* Right Panel - Visualization */}
           <div className="lg:col-span-9">
             <Card className="h-full">
@@ -131,9 +158,9 @@ const Index = () => {
                 <div className="flex justify-between items-center">
                   <CardTitle>Petri Net Visualization</CardTitle>
                   <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={toggleGraphFullscreen}
                     >
                       {isGraphFullscreen ? (
@@ -148,8 +175,8 @@ const Index = () => {
                 </div>
               </CardHeader>
               <CardContent className="pt-4">
-                <div 
-                  ref={graphContainerRef} 
+                <div
+                  ref={graphContainerRef}
                   className="h-[600px] border rounded-md"
                 >
                   <PetriNetGraph />
@@ -158,7 +185,7 @@ const Index = () => {
             </Card>
           </div>
         </div>
-        
+
         <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Log Table */}
           <Card>
@@ -172,7 +199,7 @@ const Index = () => {
               <LogTable />
             </CardContent>
           </Card>
-          
+
           {/* Token Counts */}
           <Card>
             <CardHeader>
@@ -200,7 +227,7 @@ const ControlPanel = () => {
         <TabsTrigger value="flow">Flow</TabsTrigger>
         <TabsTrigger value="batch">Batch</TabsTrigger>
       </TabsList>
-      
+
       <div className="mt-2">
         <Card>
           <CardContent className="pt-6">
@@ -209,15 +236,15 @@ const ControlPanel = () => {
               <UndoButton />
               <ResetButton />
             </div>
-            
+
             <TabsContent value="rules" className="mt-0">
               <RuleControls />
             </TabsContent>
-            
+
             <TabsContent value="flow" className="mt-0">
               <FlowControls />
             </TabsContent>
-            
+
             <TabsContent value="batch" className="mt-0">
               <BatchControls />
             </TabsContent>
@@ -238,59 +265,72 @@ const RuleControls = () => {
   // Get valid targets based on the selected rule
   const getTargetOptions = () => {
     if (!selectedRule) return [];
-    
+
     // Determine node type required for the selected rule
     let requiredType = "";
-    if (selectedRule.includes("Abstraction") || selectedRule.includes("Linear Place")) {
+    if (
+      selectedRule.includes("Abstraction") ||
+      selectedRule.includes("Linear Place")
+    ) {
       requiredType = "transition";
     } else if (selectedRule.includes("Linear Transition")) {
       requiredType = "place";
     }
-    
+
     // Filter nodes by the required type
     return state.graph.nodes
-      .filter(node => node.type === requiredType)
-      .map(node => ({
+      .filter((node) => node.type === requiredType)
+      .map((node) => ({
         label: node.id,
-        value: node.id
+        value: node.id,
       }));
   };
 
   // Get valid end nodes based on the selected rule
   const getEndNodeOptions = () => {
     if (!selectedRule) return [];
-    
+
     // Only Linear Transition and Dual Abstraction rules support end nodes
     if (selectedRule === "Linear Transition ψT") {
       return state.graph.nodes
-        .filter(node => node.type === 'place')
-        .map(node => ({
+        .filter((node) => node.type === "place")
+        .map((node) => ({
           label: node.id,
-          value: node.id
+          value: node.id,
         }));
     } else if (selectedRule === "Dual Abstraction ψD") {
       return state.graph.nodes
-        .filter(node => node.type === 'transition')
-        .map(node => ({
+        .filter((node) => node.type === "transition")
+        .map((node) => ({
           label: node.id,
-          value: node.id
+          value: node.id,
         }));
     }
-    
+
     return [];
   };
 
   // Check if the selected rule supports end nodes
   const supportsEndNode = () => {
-    return selectedRule === "Linear Transition ψT" || selectedRule === "Dual Abstraction ψD";
+    return (
+      selectedRule === "Linear Transition ψT" ||
+      selectedRule === "Dual Abstraction ψD"
+    );
   };
 
   const handleApplyRule = () => {
     if (selectedRule && targetNode) {
       // Only include endNode if the rule supports it and an end node is selected
-      const endNodeToUse = supportsEndNode() && endNode && endNode !== "none" ? endNode : undefined;
+      const endNodeToUse =
+        supportsEndNode() && endNode && endNode !== "none"
+          ? endNode
+          : undefined;
       applyRule(selectedRule, targetNode, endNodeToUse);
-      toast.success(`Applied ${selectedRule} on ${targetNode}${endNodeToUse ? ` to ${endNodeToUse}` : ''}`);
+      toast.success(
+        `Applied ${selectedRule} on ${targetNode}${
+          endNodeToUse ? ` to ${endNodeToUse}` : ""
+        }`
+      );
     } else {
       toast.error("Please select both a rule and a target");
     }
@@ -311,13 +351,17 @@ const RuleControls = () => {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="Abstraction ψA">Abstraction ψA</SelectItem>
-            <SelectItem value="Linear Transition ψT">Linear Transition ψT</SelectItem>
+            <SelectItem value="Linear Transition ψT">
+              Linear Transition ψT
+            </SelectItem>
             <SelectItem value="Linear Place ψP">Linear Place ψP</SelectItem>
-            <SelectItem value="Dual Abstraction ψD">Dual Abstraction ψD</SelectItem>
+            <SelectItem value="Dual Abstraction ψD">
+              Dual Abstraction ψD
+            </SelectItem>
           </SelectContent>
         </Select>
       </div>
-      
+
       <div>
         <Label>Start Node</Label>
         <Select value={targetNode} onValueChange={setTargetNode}>
@@ -325,7 +369,7 @@ const RuleControls = () => {
             <SelectValue placeholder="Select target" />
           </SelectTrigger>
           <SelectContent>
-            {getTargetOptions().map(option => (
+            {getTargetOptions().map((option) => (
               <SelectItem key={option.value} value={option.value}>
                 {option.label}
               </SelectItem>
@@ -338,7 +382,7 @@ const RuleControls = () => {
           </SelectContent>
         </Select>
       </div>
-      
+
       {/* Show end node selection only for rules that support it */}
       {supportsEndNode() && (
         <div>
@@ -349,7 +393,7 @@ const RuleControls = () => {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="none">None (default behavior)</SelectItem>
-              {getEndNodeOptions().map(option => (
+              {getEndNodeOptions().map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}
                 </SelectItem>
@@ -358,18 +402,14 @@ const RuleControls = () => {
           </Select>
         </div>
       )}
-      
+
       <div className="pt-1 space-y-2">
-        <Button 
-          className="w-full" 
-          size="sm"
-          onClick={handleApplyRule}
-        >
+        <Button className="w-full" size="sm" onClick={handleApplyRule}>
           Apply Rule
         </Button>
-        <Button 
-          variant="outline" 
-          className="w-full" 
+        <Button
+          variant="outline"
+          className="w-full"
           size="sm"
           onClick={() => {
             applyRandomRule();
@@ -391,10 +431,10 @@ const FlowControls = () => {
 
   // Get all places for the flow dropdowns
   const placeOptions = state.graph.nodes
-    .filter(node => node.type === 'place')
-    .map(node => ({
+    .filter((node) => node.type === "place")
+    .map((node) => ({
       label: node.id,
-      value: node.id
+      value: node.id,
     }));
 
   const handleSetTokenFlow = () => {
@@ -415,18 +455,20 @@ const FlowControls = () => {
             <SelectValue placeholder="Select start" />
           </SelectTrigger>
           <SelectContent>
-            {placeOptions.map(option => (
+            {placeOptions.map((option) => (
               <SelectItem key={option.value} value={option.value}>
                 {option.label}
               </SelectItem>
             ))}
             {placeOptions.length === 0 && (
-              <SelectItem value="dummy" disabled>No places available</SelectItem>
+              <SelectItem value="dummy" disabled>
+                No places available
+              </SelectItem>
             )}
           </SelectContent>
         </Select>
       </div>
-      
+
       <div>
         <Label>End Place</Label>
         <Select value={endPlace} onValueChange={setEndPlace}>
@@ -434,24 +476,22 @@ const FlowControls = () => {
             <SelectValue placeholder="Select end" />
           </SelectTrigger>
           <SelectContent>
-            {placeOptions.map(option => (
+            {placeOptions.map((option) => (
               <SelectItem key={option.value} value={option.value}>
                 {option.label}
               </SelectItem>
             ))}
             {placeOptions.length === 0 && (
-              <SelectItem value="dummy" disabled>No places available</SelectItem>
+              <SelectItem value="dummy" disabled>
+                No places available
+              </SelectItem>
             )}
           </SelectContent>
         </Select>
       </div>
-      
+
       <div className="pt-1 space-y-2">
-        <Button 
-          className="w-full" 
-          size="sm"
-          onClick={handleSetTokenFlow}
-        >
+        <Button className="w-full" size="sm" onClick={handleSetTokenFlow}>
           Set Token Flow
         </Button>
       </div>
@@ -466,67 +506,75 @@ const BatchControls = () => {
   const [useRandom, setUseRandom] = useState(true);
   const [selectedRules, setSelectedRules] = useState<string[]>([]);
   const [useWeights, setUseWeights] = useState(false);
-  const [ruleWeights, setRuleWeights] = useState<{ rule: string; weight: number }[]>([]);
-  
+  const [ruleWeights, setRuleWeights] = useState<
+    { rule: string; weight: number }[]
+  >([]);
+
   // List of all available rules
   const availableRules = [
-    "Abstraction ψA", 
-    "Linear Transition ψT", 
-    "Linear Place ψP", 
-    "Dual Abstraction ψD"
+    "Abstraction ψA",
+    "Linear Transition ψT",
+    "Linear Place ψP",
+    "Dual Abstraction ψD",
   ];
 
   // Calculate total weight assigned
   const totalWeight = ruleWeights.reduce((acc, rw) => acc + rw.weight, 0);
-  
+
   // Calculate remaining weight for unassigned rules
   const assignedRulesCount = ruleWeights.length;
   const unassignedRulesCount = selectedRules.length - assignedRulesCount;
   const remainingWeight = Math.max(0, 100 - totalWeight);
-  const weightPerUnassignedRule = unassignedRulesCount > 0 ? (remainingWeight / unassignedRulesCount) : 0;
+  const weightPerUnassignedRule =
+    unassignedRulesCount > 0 ? remainingWeight / unassignedRulesCount : 0;
 
   // Handle rule selection
   const handleRuleSelection = (rule: string, checked: boolean) => {
     if (checked) {
-      setSelectedRules(prev => [...prev, rule]);
+      setSelectedRules((prev) => [...prev, rule]);
     } else {
-      setSelectedRules(prev => prev.filter(r => r !== rule));
+      setSelectedRules((prev) => prev.filter((r) => r !== rule));
       // Also remove any weights assigned to this rule
-      setRuleWeights(prev => prev.filter(rw => rw.rule !== rule));
+      setRuleWeights((prev) => prev.filter((rw) => rw.rule !== rule));
     }
   };
 
   // Handle weight change
   const handleWeightChange = (rule: string, weight: number) => {
-    const existingWeightIndex = ruleWeights.findIndex(rw => rw.rule === rule);
-    
+    const existingWeightIndex = ruleWeights.findIndex((rw) => rw.rule === rule);
+
     if (existingWeightIndex >= 0) {
       // Update existing weight
-      setRuleWeights(prev => 
-        prev.map((rw, idx) => 
+      setRuleWeights((prev) =>
+        prev.map((rw, idx) =>
           idx === existingWeightIndex ? { ...rw, weight } : rw
         )
       );
     } else {
       // Add new weight
-      setRuleWeights(prev => [...prev, { rule, weight }]);
+      setRuleWeights((prev) => [...prev, { rule, weight }]);
     }
   };
 
   // Reset weight for a rule
   const resetWeight = (rule: string) => {
-    setRuleWeights(prev => prev.filter(rw => rw.rule !== rule));
+    setRuleWeights((prev) => prev.filter((rw) => rw.rule !== rule));
   };
 
   // Get the weight for a rule
   const getRuleWeight = (rule: string): number | undefined => {
-    const weightEntry = ruleWeights.find(rw => rw.rule === rule);
+    const weightEntry = ruleWeights.find((rw) => rw.rule === rule);
     return weightEntry?.weight;
   };
 
   // Handle generate batch
   const handleGenerate = () => {
-    generateBatch(count, useRandom, selectedRules, useWeights ? ruleWeights : undefined);
+    generateBatch(
+      count,
+      useRandom,
+      selectedRules,
+      useWeights ? ruleWeights : undefined
+    );
     toast.success(`Generated batch with ${count} rules`);
   };
 
@@ -534,25 +582,25 @@ const BatchControls = () => {
     <div className="space-y-4">
       <div>
         <Label>Number of Rules</Label>
-        <Input 
-          type="number" 
-          min={1} 
-          defaultValue={1} 
+        <Input
+          type="number"
+          min={1}
+          defaultValue={1}
           className="mt-1"
           value={count}
           onChange={(e) => setCount(parseInt(e.target.value) || 1)}
         />
       </div>
-      
+
       <div className="flex items-center space-x-2">
-        <Checkbox 
-          id="random-rules" 
-          checked={useRandom} 
-          onCheckedChange={(checked) => setUseRandom(!!checked)} 
+        <Checkbox
+          id="random-rules"
+          checked={useRandom}
+          onCheckedChange={(checked) => setUseRandom(!!checked)}
         />
         <Label htmlFor="random-rules">Use random rules</Label>
       </div>
-      
+
       {!useRandom && (
         <>
           <div>
@@ -566,52 +614,64 @@ const BatchControls = () => {
                         <HelpCircle size={14} />
                       </TooltipTrigger>
                       <TooltipContent className="w-72 p-2">
-                        <p>Set the probability weight for each rule. The total weight should not exceed 100%. 
-                        Any remaining weight will be distributed evenly among rules without specific weights.</p>
+                        <p>
+                          Set the probability weight for each rule. The total
+                          weight should not exceed 100%. Any remaining weight
+                          will be distributed evenly among rules without
+                          specific weights.
+                        </p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                   <div className="flex items-center space-x-2">
-                    <Switch 
-                      id="use-weights" 
+                    <Switch
+                      id="use-weights"
                       checked={useWeights}
                       onCheckedChange={setUseWeights}
                     />
-                    <Label htmlFor="use-weights" className="text-xs">Use weights</Label>
+                    <Label htmlFor="use-weights" className="text-xs">
+                      Use weights
+                    </Label>
                   </div>
                 </div>
               )}
             </div>
-            
+
             <ScrollArea className="h-48 border rounded-md p-2 mt-1">
               <div className="space-y-3 pr-3">
-                {availableRules.map(rule => (
+                {availableRules.map((rule) => (
                   <div key={rule} className="space-y-1">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
-                        <Checkbox 
-                          id={`rule-${rule}`} 
+                        <Checkbox
+                          id={`rule-${rule}`}
                           checked={selectedRules.includes(rule)}
-                          onCheckedChange={(checked) => handleRuleSelection(rule, !!checked)}
+                          onCheckedChange={(checked) =>
+                            handleRuleSelection(rule, !!checked)
+                          }
                         />
-                        <Label htmlFor={`rule-${rule}`} className="text-sm">{rule}</Label>
+                        <Label htmlFor={`rule-${rule}`} className="text-sm">
+                          {rule}
+                        </Label>
                       </div>
                       {selectedRules.includes(rule) && useWeights && (
                         <div className="text-xs text-muted-foreground">
                           {getRuleWeight(rule) !== undefined ? (
                             <span>
                               {getRuleWeight(rule)}%
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="h-5 px-1 ml-1" 
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-5 px-1 ml-1"
                                 onClick={() => resetWeight(rule)}
                               >
                                 ×
                               </Button>
                             </span>
                           ) : (
-                            <span>{weightPerUnassignedRule.toFixed(1)}% (auto)</span>
+                            <span>
+                              {weightPerUnassignedRule.toFixed(1)}% (auto)
+                            </span>
                           )}
                         </div>
                       )}
@@ -624,7 +684,9 @@ const BatchControls = () => {
                           min={0}
                           max={100}
                           step={5}
-                          onValueChange={(values) => handleWeightChange(rule, values[0])}
+                          onValueChange={(values) =>
+                            handleWeightChange(rule, values[0])
+                          }
                         />
                       </div>
                     )}
@@ -632,12 +694,18 @@ const BatchControls = () => {
                 ))}
               </div>
             </ScrollArea>
-            
+
             {useWeights && selectedRules.length > 0 && (
               <div className="mt-2 space-y-1">
                 <div className="flex items-center justify-between text-sm">
                   <span>Total assigned:</span>
-                  <span className={totalWeight > 100 ? "text-red-500 font-medium" : "font-medium"}>
+                  <span
+                    className={
+                      totalWeight > 100
+                        ? "text-red-500 font-medium"
+                        : "font-medium"
+                    }
+                  >
                     {totalWeight}%
                   </span>
                 </div>
@@ -648,7 +716,8 @@ const BatchControls = () => {
                 )}
                 {unassignedRulesCount > 0 && (
                   <div className="text-xs text-muted-foreground">
-                    {remainingWeight}% will be distributed among {unassignedRulesCount} unweighted rule(s)
+                    {remainingWeight}% will be distributed among{" "}
+                    {unassignedRulesCount} unweighted rule(s)
                   </div>
                 )}
               </div>
@@ -656,9 +725,9 @@ const BatchControls = () => {
           </div>
         </>
       )}
-      
-      <Button 
-        className="w-full" 
+
+      <Button
+        className="w-full"
         size="sm"
         onClick={handleGenerate}
         disabled={!useRandom && selectedRules.length === 0}
@@ -672,11 +741,11 @@ const BatchControls = () => {
 // Utility Button Components
 const UndoButton = () => {
   const { undo } = usePetriNet();
-  
+
   return (
-    <Button 
-      variant="outline" 
-      className="w-1/2" 
+    <Button
+      variant="outline"
+      className="w-1/2"
       size="sm"
       onClick={() => {
         undo();
@@ -691,11 +760,11 @@ const UndoButton = () => {
 
 const ResetButton = () => {
   const { reset } = usePetriNet();
-  
+
   return (
-    <Button 
-      variant="outline" 
-      className="w-1/2" 
+    <Button
+      variant="outline"
+      className="w-1/2"
       size="sm"
       onClick={() => {
         reset();
@@ -710,11 +779,11 @@ const ResetButton = () => {
 
 const CenterGraphButton = () => {
   const { centerGraph } = usePetriNet();
-  
+
   return (
-    <Button 
-      variant="outline" 
-      size="sm" 
+    <Button
+      variant="outline"
+      size="sm"
       onClick={() => {
         centerGraph();
         toast.info("Graph centered");
@@ -728,10 +797,10 @@ const CenterGraphButton = () => {
 
 const DownloadLogButton = () => {
   const { downloadLog } = usePetriNet();
-  
+
   return (
-    <Button 
-      variant="outline" 
+    <Button
+      variant="outline"
       size="sm"
       onClick={() => {
         downloadLog();
