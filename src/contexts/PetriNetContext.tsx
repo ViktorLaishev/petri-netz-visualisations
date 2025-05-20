@@ -111,6 +111,79 @@ const PetriNetContext = createContext<PetriNetContextType | undefined>(
   undefined
 );
 
+const hasFirablePath = (graph: Graph): boolean => {
+  const startPlace = graph.nodes.find(
+    (n) => n.id === "P0" && n.type === "place"
+  );
+  const endPlace = graph.nodes.find(
+    (n) => n.id === "P_out" && n.type === "place"
+  );
+  if (!startPlace || !endPlace) return false;
+
+  const visitedPaths = new Set<string>();
+
+  function simulateMarking() {
+    const marking = new Map<string, number>();
+    graph.nodes.forEach((node) => {
+      if (node.type === "place") marking.set(node.id, 0);
+    });
+    marking.set(startPlace.id, 1);
+    return marking;
+  }
+
+  function canFire(tId: string, marking: Map<string, number>) {
+    const inputs = graph.edges
+      .filter((e) => e.target === tId)
+      .map((e) => e.source);
+    return inputs.every((pId) => (marking.get(pId) || 0) > 0);
+  }
+
+  function fireTransition(
+    tId: string,
+    marking: Map<string, number>
+  ): Map<string, number> {
+    const newMarking = new Map(marking);
+    const inputs = graph.edges
+      .filter((e) => e.target === tId)
+      .map((e) => e.source);
+    const outputs = graph.edges
+      .filter((e) => e.source === tId)
+      .map((e) => e.target);
+
+    inputs.forEach((pId) =>
+      newMarking.set(pId, (newMarking.get(pId) || 0) - 1)
+    );
+    outputs.forEach((pId) =>
+      newMarking.set(pId, (newMarking.get(pId) || 0) + 1)
+    );
+    return newMarking;
+  }
+
+  let isValid = false;
+
+  function dfs(marking: Map<string, number>, seen: Set<string>) {
+    if (isValid) return;
+
+    if ((marking.get(endPlace.id) || 0) > 0) {
+      isValid = true;
+      return;
+    }
+
+    const transitions = graph.nodes.filter((n) => n.type === "transition");
+    for (const t of transitions) {
+      if (canFire(t.id, marking)) {
+        const newMarking = fireTransition(t.id, marking);
+        const newSeen = new Set(seen);
+        newSeen.add(t.id);
+        dfs(newMarking, newSeen);
+      }
+    }
+  }
+
+  dfs(simulateMarking(), new Set());
+  return isValid;
+};
+
 // Rule implementations
 const applyAbstractionRule = (graph: Graph, targetId: string): Graph => {
   const newGraph = { ...graph };
@@ -159,6 +232,13 @@ const applyAbstractionRule = (graph: Graph, targetId: string): Graph => {
     return graph;
   }
 
+  if (!hasFirablePath(newGraph)) {
+    toast.error(
+      "Invalid Petri net: No firable path to P_out after applying this rule."
+    );
+    return; // do not commit this rule
+  }
+
   return newGraph;
 };
 
@@ -203,6 +283,12 @@ const applyLinearTransitionRule = (
   if (!isConnectedGraph(newGraph)) {
     toast.error("Cannot apply this rule: it would create disconnected nodes");
     return graph;
+  }
+  if (!hasFirablePath(newGraph)) {
+    toast.error(
+      "Invalid Petri net: No firable path to P_out after applying this rule."
+    );
+    return; // do not commit this rule
   }
 
   return newGraph;
@@ -261,6 +347,12 @@ const applyLinearPlaceRule = (graph: Graph, targetId: string): Graph => {
   if (!isConnectedGraph(newGraph)) {
     toast.error("Cannot apply this rule: it would create disconnected nodes");
     return graph;
+  }
+  if (!hasFirablePath(newGraph)) {
+    toast.error(
+      "Invalid Petri net: No firable path to P_out after applying this rule."
+    );
+    return; // do not commit this rule
   }
 
   return newGraph;
@@ -331,6 +423,12 @@ const applyLinearTransitionDependencyRule = (
     toast.error("Cannot apply this rule: it would create disconnected nodes");
     return graph;
   }
+  if (!hasFirablePath(newGraph)) {
+    toast.error(
+      "Invalid Petri net: No firable path to P_out after applying this rule."
+    );
+    return; // do not commit this rule
+  }
 
   return newGraph;
 };
@@ -389,6 +487,12 @@ const applyDualAbstractionRule = (
     toast.error("Cannot apply this rule: it would create disconnected nodes");
     return graph;
   }
+  if (!hasFirablePath(newGraph)) {
+    toast.error(
+      "Invalid Petri net: No firable path to P_out after applying this rule."
+    );
+    return; // do not commit this rule
+  }
 
   return newGraph;
 };
@@ -411,6 +515,7 @@ const applyRandomAbstractionRule = (graph: Graph): Graph => {
       newGraph !== graph &&
       isConnectedGraph(newGraph) &&
       !wouldCreateInvalidConnections(newGraph) &&
+      hasFirablePath(newGraph) &&
       allNodesInPathFromStartToEnd(newGraph)
     ) {
       return newGraph;
@@ -454,6 +559,7 @@ const applyRandomLinearTransitionRule = (graph: Graph): Graph => {
       newGraph !== graph &&
       isConnectedGraph(newGraph) &&
       !wouldCreateInvalidConnections(newGraph) &&
+      hasFirablePath(newGraph) &&
       allNodesInPathFromStartToEnd(newGraph)
     ) {
       return newGraph;
@@ -481,6 +587,7 @@ const applyRandomLinearPlaceRule = (graph: Graph): Graph => {
     if (
       newGraph !== graph &&
       isConnectedGraph(newGraph) &&
+      hasFirablePath(newGraph) &&
       !wouldCreateInvalidConnections(newGraph) &&
       allNodesInPathFromStartToEnd(newGraph)
     ) {
@@ -510,6 +617,7 @@ const applyRandomLinearTransitionDependencyRule = (graph: Graph): Graph => {
     if (
       newGraph !== graph &&
       isConnectedGraph(newGraph) &&
+      hasFirablePath(newGraph) &&
       !wouldCreateInvalidConnections(newGraph) &&
       allNodesInPathFromStartToEnd(newGraph)
     ) {
@@ -554,6 +662,7 @@ const applyRandomDualAbstractionRule = (graph: Graph): Graph => {
     if (
       newGraph !== graph &&
       isConnectedGraph(newGraph) &&
+      hasFirablePath(newGraph) &&
       !wouldCreateInvalidConnections(newGraph) &&
       allNodesInPathFromStartToEnd(newGraph)
     ) {
@@ -1534,82 +1643,86 @@ export const PetriNetProvider: React.FC<{ children: ReactNode }> = ({
     const endPlace = graph.nodes.find(
       (n) => n.id === "P_out" && n.type === "place"
     );
+    if (!startPlace || !endPlace) return [];
 
-    if (!startPlace || !endPlace) {
-      throw new Error("P0 or P_out missing from the graph");
+    const allPaths: Path[] = [];
+    const visitedPaths = new Set<string>();
+    const MAX_PATHS = 1000;
+
+    function simulateMarking() {
+      const marking = new Map<string, number>();
+      graph.nodes.forEach((node) => {
+        if (node.type === "place") marking.set(node.id, 0);
+      });
+      marking.set(startPlace.id, 1); // initial token
+      return marking;
     }
 
-    const visitedPaths = new Set<string>();
-    const allPaths: Path[] = [];
-    const MAX_PATH_LENGTH = 100; // Safety limit to prevent infinite recursion
-    const MAX_PATHS = 1000; // Maximum number of paths to generate
+    function canFire(tId: string, marking: Map<string, number>) {
+      const inputs = graph.edges
+        .filter((e) => e.target === tId)
+        .map((e) => e.source);
+      return inputs.every((pId) => (marking.get(pId) || 0) > 0);
+    }
 
-    const dfs = (
-      currentId: string, 
-      currentPath: PathNode[], 
-      visited: Set<string> = new Set()
-    ) => {
-      // Safety check 1: Prevent stack overflow by limiting path length
-      if (currentPath.length > MAX_PATH_LENGTH) {
-        return;
-      }
-      
-      // Safety check 2: Prevent too many paths
-      if (allPaths.length >= MAX_PATHS) {
-        return;
-      }
+    function fireTransition(
+      tId: string,
+      marking: Map<string, number>
+    ): Map<string, number> {
+      const newMarking = new Map(marking);
+      const inputs = graph.edges
+        .filter((e) => e.target === tId)
+        .map((e) => e.source);
+      const outputs = graph.edges
+        .filter((e) => e.source === tId)
+        .map((e) => e.target);
 
-      // Safety check 3: Detect cycles
-      if (visited.has(currentId)) {
-        return;
-      }
-      
-      const currentNode = graph.nodes.find((n) => n.id === currentId);
-      if (!currentNode) return;
-      
-      // Clone visited set for this branch (don't modify the parent's set)
-      const newVisited = new Set(visited);
-      newVisited.add(currentId);
+      inputs.forEach((pId) =>
+        newMarking.set(pId, (newMarking.get(pId) || 0) - 1)
+      );
+      outputs.forEach((pId) =>
+        newMarking.set(pId, (newMarking.get(pId) || 0) + 1)
+      );
 
-      let newPath = [...currentPath];
-      if (currentNode.type === "place") {
-        newPath = [...newPath, { id: currentId, type: "place" }];
-      }
+      return newMarking;
+    }
 
-      if (currentId === endPlace.id) {
-        const pathKey = newPath.map((n) => n.id).join("->");
-        if (!visitedPaths.has(pathKey)) {
-          visitedPaths.add(pathKey);
-          allPaths.push({ sequence: newPath });
+    function dfs(
+      marking: Map<string, number>,
+      trace: string[],
+      seen: Set<string>
+    ) {
+      if (trace.length > 100 || allPaths.length >= MAX_PATHS) return;
+
+      if ((marking.get(endPlace.id) || 0) > 0) {
+        const traceKey = trace.join("->");
+        if (!visitedPaths.has(traceKey)) {
+          visitedPaths.add(traceKey);
+          allPaths.push({
+            sequence: trace.map((id) => ({ id, type: "transition" })),
+          });
         }
         return;
       }
 
-      const outgoingEdges = graph.edges.filter((e) => e.source === currentId);
-      for (const edge of outgoingEdges) {
-        dfs(edge.target, newPath, newVisited);
+      const transitions = graph.nodes.filter(
+        (n) => n.type === "transition" && !seen.has(n.id)
+      );
+      for (const t of transitions) {
+        if (canFire(t.id, marking)) {
+          const newMarking = fireTransition(t.id, marking);
+          const newTrace = [...trace, t.id];
+          const newSeen = new Set(seen);
+          newSeen.add(t.id);
+          dfs(newMarking, newTrace, newSeen);
+        }
       }
-    };
-
-    try {
-      dfs(startPlace.id, [], new Set());
-      
-      // If we found too many paths, add a warning path
-      if (allPaths.length >= MAX_PATHS) {
-        allPaths.push({
-          sequence: [
-            { id: "Warning", type: "place" },
-            { id: "TooManyPaths", type: "transition" },
-            { id: "LimitReached", type: "place" }
-          ]
-        });
-      }
-      
-      return allPaths;
-    } catch (error) {
-      console.error("Path generation error:", error);
-      throw error;
     }
+
+    const initialMarking = simulateMarking();
+    dfs(initialMarking, [], new Set());
+
+    return allPaths;
   };
 
   const value = {
