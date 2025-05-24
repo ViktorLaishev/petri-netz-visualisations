@@ -1,171 +1,156 @@
 
-# Petri Net Flow Visualizer
+# 📘 User Manual  
+## Petri-Net Process Discovery Web Application
 
-A React-based interactive web application for visualizing and simulating Petri nets with token flows.
+---
 
-## Project Overview
+## 🔍 Overview
 
-This project is a visualization tool for Petri nets that allows users to:
-- Create places and transitions
-- Connect nodes to form a Petri net graph
-- Apply various transformation rules to the graph
-- Simulate token flow through the network
-- Generate logs of all operations
+This web application provides an interactive, visual environment for **Petri net-based process discovery**, leveraging synthesis rules defined in academic research. It enables import/export of models, application of transformation rules, event log generation and analytics, and advanced interaction features for detailed process understanding.
 
-The application is built using modern web technologies and provides an intuitive interface for working with Petri net models.
+---
 
-## Tech Stack
+## 🚀 Getting Started
 
-- **Frontend Framework**: React with TypeScript
-- **Styling**: Tailwind CSS
-- **UI Components**: shadcn/ui library (based on Radix UI)
-- **Graph Visualization**: Cytoscape.js
-- **State Management**: React Context API
-- **Build Tool**: Vite
-- **Routing**: React Router
+### 🔧 Requirements
+- Modern web browser (Chrome, Firefox, Safari, Edge)
+- Docker (for local deployment)
 
-## Project Structure
+### 🐳 Running with Docker
 
-### Core Files
+```bash
+git clone https://github.com/your-username/petri-net-visualizer.git
+cd petri-net-visualizer
+docker build -t petri-net-app .
+docker run -p 3000:3000 petri-net-app
+```
 
-- `src/main.tsx` - Application entry point
-- `src/App.tsx` - Main application component with routing setup
-- `src/index.css` - Global CSS styles
+Then open `http://localhost:3000` in your browser.
 
-### Pages
+---
 
-- `src/pages/Index.tsx` - Main page with the Petri net interface (control panel, visualization area, log table, token counter)
-- `src/pages/NotFound.tsx` - 404 page
+## 🧠 Petri Nets & UI Basics
 
-### Components
+A **Petri Net** is a graphical and mathematical modeling tool for describing distributed systems. It consists of:
+- **Places** (circles)
+- **Transitions** (rectangles)
+- **Tokens** (dots inside places)
 
-- `src/components/PetriNetGraph.tsx` - Graph visualization component using Cytoscape.js
-- `src/components/LogTable.tsx` - Table displaying operation logs
-- `src/components/TokenCounter.tsx` - Component showing token counts in places
+### 🔹 Basic UI Actions
 
-### State Management
+- **Undo**: Revert the last change.
+- **Reset**: Reset the net to initial state.
+- **Save**: Save the net for future use.
+- **Center**: Center the net in the viewport.
+- **Fullscreen**: View the net fullscreen.
 
-- `src/contexts/PetriNetContext.tsx` - Context provider for Petri net state and operations:
-  - Graph state (nodes, edges)
-  - Token positioning and flow
-  - Simulation state
-  - Operation history and logs
-  - Implementation of all Petri net operations and transformation rules
+---
 
-### UI Components
+## 🔄 Rule Application
 
-The project uses the shadcn/ui component library, which provides pre-built UI components:
+### 🛠 How to Apply Rules
 
-- `src/components/ui/` - Contains all shadcn/ui components:
-  - `button.tsx` - Button components
-  - `card.tsx` - Card container components
-  - `input.tsx` - Input field components
-  - `select.tsx` - Dropdown select components
-  - `tabs.tsx` - Tab navigation components
-  - `toast.tsx` - Toast notification components
-  - And many more utility UI components
+1. Select a rule from the dropdown.
+2. Select the start node.
+3. For certain rules (e.g. ψT, ψD), select an end node.
+4. Click **Apply Rule**.
 
-### Python Implementation
+> If a rule is invalid, the system will **explain why** and show what rule it attempted.
 
-The repository also includes `petri_net_app.py`, which is an alternative implementation of the Petri net visualizer using Python with Dash and dash-cytoscape. This is separate from the React implementation and can be run independently.
+### 📋 Available Rules
 
-## Key Features
+- **Abstraction (ψA)**: Simplifies by abstracting a transition and adjacent places.
+- **Linear Transition (ψT)**: Adds a sequence of transitions.
+- **Linear Place (ψP)**: Adds a linear sequence of places.
+- **Dual Abstraction (ψD)**: Connects transitions with intermediate places.
 
-### Node Creation and Management
+### 🎲 Random & Weighted Application
 
-- Add places (circular nodes)
-- Add transitions (rectangular nodes)
-- Connect nodes with directed edges
-- Add/remove tokens from places
+- **Random**: Applies any valid rule.
+- **Weighted Random**: Choose specific rules and assign weights to influence frequency.
 
-### Transformation Rules
+---
 
-- **Abstraction ψA** - Replaces a direct connection with an intermediate place and transition
-- **Linear Transition ψT** - Creates a new transition from a place
-- **Linear Place ψP** - Creates a new place leading to a transition
-- **Dual Abstraction ψD** - Combines abstraction with linear transition
+## 🧾 Event Log
 
-### Simulation
+### 🔍 What It Does
 
-- Set token flow start and end points
-- Animate token movement through the Petri net
-- View process logs of token movement
-- Track token counts in different places
+Tracks all actions with:
+- **Timestamps**
+- **Action type**
+- **State changes**
+- **Details of affected nodes**
 
-### Batch Operations
+### 📈 Analytics Capabilities
 
-- Apply multiple rules at once
-- Choose specific rules or use random selection
-- Generate complex Petri nets quickly
+- Transition frequency
+- Trace length (avg, min, max)
+- CSV export
+- Rule frequency analysis
+- Structural complexity changes
 
-## UI Layout
+---
 
-The user interface is divided into several key areas:
+## 🔃 Batch Operations
 
-1. **Left Panel (Control Panel)**
-   - Tabs for different operations (Nodes, Rules, Flow, Batch)
-   - Controls for adding nodes, applying rules, setting token flow, and batch operations
-   - Undo and reset buttons
+1. Navigate to the **Batch** tab.
+2. Set number of rule applications.
+3. Select rules and assign weights (optional).
+4. Click **Generate**.
 
-2. **Main Graph View**
-   - Interactive visualization of the Petri net
-   - Controls for starting/stopping simulation and centering the graph
+Rules will be applied in bulk, preserving soundness.
 
-3. **Bottom Panel**
-   - Process log table showing operation history
-   - Token counter displaying the number of tokens in each place
+---
 
-## Getting Started
+## 🗃️ Saved Nets
 
-1. Install dependencies:
-   ```
-   npm install
-   ```
+Imported or saved models are stored under **Saved Nets**. You must load a saved model to edit or apply rules.
 
-2. Start the development server:
-   ```
-   npm run dev
-   ```
+---
 
-3. Open your browser and navigate to the URL shown in the terminal (typically `http://localhost:5173`)
+## 🧩 Interactive Graph Features
 
-## Development Guidelines
+- **Double-click on places**:
+  - Add/edit state descriptions
+  - See incoming/outgoing transitions
 
-### Adding New Components
+- **Toggle light/dark mode** for visual preference
 
-1. Create a new component in the appropriate directory
-2. For UI components, consider using shadcn/ui as a foundation
-3. Import the component where needed
+---
 
-### Modifying Petri Net Logic
+## 🧠 Tips
 
-The core logic for Petri net operations is in `src/contexts/PetriNetContext.tsx`. This includes:
+- Use **descriptions** to label places meaningfully.
+- Rely on **event log** for process validation or auditing.
+- When applying a rule fails, read the tooltip to understand the cause.
 
-- Node and edge management
-- Rule implementations
-- Simulation logic
-- History tracking
+---
 
-### Styling Components
+## 📚 Based On
 
-The project uses Tailwind CSS for styling. To add or modify styles:
+- [Huang et al., 2022] Generating Flexible Process with Essential Properties
+- PLG2, Process Mining tools
+- Supervisor's backend logic
 
-1. Use Tailwind utility classes directly in the component
-2. For complex components, consider creating a dedicated CSS file
-3. Global styles can be added to `src/index.css`
+---
 
-## Python Implementation
+## ❓FAQ
 
-The `petri_net_app.py` file contains a Python implementation using Dash and dash-cytoscape. To run it:
+**Q: A rule can’t be applied. Why?**  
+A: The app prevents unsound transformations. A tooltip explains why the rule failed.
 
-1. Install required Python packages:
-   ```
-   pip install dash dash-cytoscape pandas networkx
-   ```
+**Q: How do I share a model?**  
+A: Use the **Export** feature to save the model as a `.pnml` file.
 
-2. Run the application:
-   ```
-   python petri_net_app.py
-   ```
+**Q: Where do I find old models?**  
+A: In the **Saved Nets** section, then click "Load".
 
-This will start a web server, and you can access the application by navigating to the URL shown in the terminal (typically `http://127.0.0.1:8050`).
+**Q: How does randomization work?**  
+A: You can apply rules randomly or assign weights to control how often each rule appears.
+
+---
+
+## ✅ Summary
+
+This app is a powerful educational and analytical tool for creating, modifying, and analyzing sound, free-choice Petri nets. It combines the rigor of academic research with an accessible and interactive UI for practical use in process mining, modeling, and simulation.
+
