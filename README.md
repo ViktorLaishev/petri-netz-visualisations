@@ -19,7 +19,7 @@ This web application provides an interactive, visual environment for **Petri net
 ### 🐳 Running with Docker
 
 ```bash
-git clone [https://github.com/ViktorLaishev/petri-netz-visualisations.git]
+git clone https://github.com/ViktorLaishev/petri-netz-visualisations.git
 cd petri-net-visualizer
 docker build -t petri-net-app .
 docker run -p 3000:3000 petri-net-app
