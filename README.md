@@ -1,22 +1,22 @@
 
-# 📘 User Manual  
+#  User Manual  
 ## Petri-Net Process Discovery Web Application
 
 ---
 
-## 🔍 Overview
+##  Overview
 
 This web application provides an interactive, visual environment for **Petri net-based process discovery**, leveraging synthesis rules defined in academic research. It enables import/export of models, application of transformation rules, event log generation and analytics, and advanced interaction features for detailed process understanding.
 
 ---
 
-## 🚀 Getting Started
+##  Getting Started
 
 ### 🔧 Requirements
 - Modern web browser (Chrome, Firefox, Safari, Edge)
 - Docker (for local deployment)
 
-### 🐳 Running with Docker
+###  Running with Docker
 
 ```bash
 git clone https://github.com/ViktorLaishev/petri-netz-visualisations.git
@@ -29,14 +29,14 @@ Then open `http://localhost:3000` in your browser.
 
 ---
 
-## 🧠 Petri Nets & UI Basics
+##  Petri Nets & UI Basics
 
 A **Petri Net** is a graphical and mathematical modeling tool for describing distributed systems. It consists of:
 - **Places** (circles)
 - **Transitions** (rectangles)
 - **Tokens** (dots inside places)
 
-### 🔹 Basic UI Actions
+###  Basic UI Actions
 
 - **Undo**: Revert the last change.
 - **Reset**: Reset the net to initial state.
@@ -46,9 +46,9 @@ A **Petri Net** is a graphical and mathematical modeling tool for describing dis
 
 ---
 
-## 🔄 Rule Application
+##  Rule Application
 
-### 🛠 How to Apply Rules
+###  How to Apply Rules
 
 1. Select a rule from the dropdown.
 2. Select the start node.
@@ -57,23 +57,23 @@ A **Petri Net** is a graphical and mathematical modeling tool for describing dis
 
 > If a rule is invalid, the system will **explain why** and show what rule it attempted.
 
-### 📋 Available Rules
+###  Available Rules
 
 - **Abstraction (ψA)**: Simplifies by abstracting a transition and adjacent places.
 - **Linear Transition (ψT)**: Adds a sequence of transitions.
 - **Linear Place (ψP)**: Adds a linear sequence of places.
 - **Dual Abstraction (ψD)**: Connects transitions with intermediate places.
 
-### 🎲 Random & Weighted Application
+###  Random & Weighted Application
 
 - **Random**: Applies any valid rule.
 - **Weighted Random**: Choose specific rules and assign weights to influence frequency.
 
 ---
 
-## 🧾 Event Log
+##  Event Log
 
-### 🔍 What It Does
+###  What It Does
 
 Tracks all actions with:
 - **Timestamps**
@@ -81,7 +81,7 @@ Tracks all actions with:
 - **State changes**
 - **Details of affected nodes**
 
-### 📈 Analytics Capabilities
+###  Analytics Capabilities
 
 - Transition frequency
 - Trace length (avg, min, max)
@@ -91,7 +91,7 @@ Tracks all actions with:
 
 ---
 
-## 🔃 Batch Operations
+##  Batch Operations
 
 1. Navigate to the **Batch** tab.
 2. Set number of rule applications.
@@ -102,13 +102,13 @@ Rules will be applied in bulk, preserving soundness.
 
 ---
 
-## 🗃️ Saved Nets
+##  Saved Nets
 
 Imported or saved models are stored under **Saved Nets**. You must load a saved model to edit or apply rules.
 
 ---
 
-## 🧩 Interactive Graph Features
+##  Interactive Graph Features
 
 - **Double-click on places**:
   - Add/edit state descriptions
@@ -118,7 +118,7 @@ Imported or saved models are stored under **Saved Nets**. You must load a saved 
 
 ---
 
-## 🧠 Tips
+##  Tips
 
 - Use **descriptions** to label places meaningfully.
 - Rely on **event log** for process validation or auditing.
@@ -126,7 +126,7 @@ Imported or saved models are stored under **Saved Nets**. You must load a saved 
 
 ---
 
-## 📚 Based On
+##  Based On
 
 - [Huang et al., 2022] Generating Flexible Process with Essential Properties
 - PLG2, Process Mining tools
@@ -134,7 +134,7 @@ Imported or saved models are stored under **Saved Nets**. You must load a saved 
 
 ---
 
-## ❓FAQ
+## FAQ
 
 **Q: A rule can’t be applied. Why?**  
 A: The app prevents unsound transformations. A tooltip explains why the rule failed.
@@ -150,7 +150,7 @@ A: You can apply rules randomly or assign weights to control how often each rule
 
 ---
 
-## ✅ Summary
+##  Summary
 
 This app is a powerful educational and analytical tool for creating, modifying, and analyzing sound, free-choice Petri nets. It combines the rigor of academic research with an accessible and interactive UI for practical use in process mining, modeling, and simulation.
 
