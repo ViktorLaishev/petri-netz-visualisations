@@ -120,14 +120,12 @@ const hasFirablePath = (graph: Graph): boolean => {
   );
   if (!startPlace || !endPlace) return false;
 
-  const visitedPaths = new Set<string>();
-
   function simulateMarking() {
     const marking = new Map<string, number>();
     graph.nodes.forEach((node) => {
       if (node.type === "place") marking.set(node.id, 0);
     });
-    marking.set(startPlace.id, 1);
+    marking.set(startPlace.id, 1); // single token in P0
     return marking;
   }
 
@@ -150,38 +148,41 @@ const hasFirablePath = (graph: Graph): boolean => {
       .filter((e) => e.source === tId)
       .map((e) => e.target);
 
+    // consume input tokens
     inputs.forEach((pId) =>
       newMarking.set(pId, (newMarking.get(pId) || 0) - 1)
     );
+    // produce output tokens
     outputs.forEach((pId) =>
       newMarking.set(pId, (newMarking.get(pId) || 0) + 1)
     );
     return newMarking;
   }
 
-  let isValid = false;
+  let foundValidPath = false;
 
-  function dfs(marking: Map<string, number>, seen: Set<string>) {
-    if (isValid) return;
+  function dfs(marking: Map<string, number>, depth: number = 0) {
+    if (foundValidPath || depth > 50) return;
 
     if ((marking.get(endPlace.id) || 0) > 0) {
-      isValid = true;
+      foundValidPath = true;
       return;
     }
 
     const transitions = graph.nodes.filter((n) => n.type === "transition");
+
     for (const t of transitions) {
       if (canFire(t.id, marking)) {
-        const newMarking = fireTransition(t.id, marking);
-        const newSeen = new Set(seen);
-        newSeen.add(t.id);
-        dfs(newMarking, newSeen);
+        const nextMarking = fireTransition(t.id, marking);
+        dfs(nextMarking, depth + 1);
       }
     }
   }
 
-  dfs(simulateMarking(), new Set());
-  return isValid;
+  const initialMarking = simulateMarking();
+  dfs(initialMarking);
+
+  return foundValidPath;
 };
 
 // Rule implementations
@@ -222,21 +223,10 @@ const applyAbstractionRule = (graph: Graph, targetId: string): Graph => {
     ...outputPlaces.map((output) => ({ source: transId, target: output })),
   ];
 
-  if (wouldCreateInvalidConnections(newGraph)) {
-    toast.error("Cannot apply this rule: it would create invalid connections");
+  const soundnessCheck = isPetriNetSound(newGraph);
+  if (!soundnessCheck.isSound) {
+    toast.error(`Cannot apply this rule: ${soundnessCheck.errors[0]}`);
     return graph;
-  }
-
-  if (!isConnectedGraph(newGraph)) {
-    toast.error("Cannot apply this rule: it would create disconnected nodes");
-    return graph;
-  }
-
-  if (!hasFirablePath(newGraph)) {
-    toast.error(
-      "Invalid Petri net: No firable path to P_out after applying this rule."
-    );
-    return; // do not commit this rule
   }
 
   return newGraph;
@@ -275,24 +265,43 @@ const applyLinearTransitionRule = (
     newGraph.edges.push({ source: transId, target: placeId });
   }
 
-  if (wouldCreateInvalidConnections(newGraph)) {
-    toast.error("Cannot apply this rule: it would create invalid connections");
+  const soundnessCheck = isPetriNetSound(newGraph);
+  if (!soundnessCheck.isSound) {
+    toast.error(`Cannot apply this rule: ${soundnessCheck.errors[0]}`);
     return graph;
-  }
-
-  if (!isConnectedGraph(newGraph)) {
-    toast.error("Cannot apply this rule: it would create disconnected nodes");
-    return graph;
-  }
-  if (!hasFirablePath(newGraph)) {
-    toast.error(
-      "Invalid Petri net: No firable path to P_out after applying this rule."
-    );
-    return; // do not commit this rule
   }
 
   return newGraph;
 };
+
+export function checkTraceConformance(graph: Graph, trace: string[]): boolean {
+  const places = graph.nodes.filter((n) => n.type === "place");
+  const transitions = graph.nodes.filter((n) => n.type === "transition");
+  const edges = graph.edges;
+
+  const marking = new Map<string, number>();
+  places.forEach((p) => marking.set(p.id, 0));
+  marking.set("P0", 1); // Initial token
+
+  const canFire = (tId: string) => {
+    const inputs = edges.filter((e) => e.target === tId).map((e) => e.source);
+    return inputs.every((pId) => (marking.get(pId) || 0) > 0);
+  };
+
+  const fire = (tId: string) => {
+    const inputs = edges.filter((e) => e.target === tId).map((e) => e.source);
+    const outputs = edges.filter((e) => e.source === tId).map((e) => e.target);
+    inputs.forEach((pId) => marking.set(pId, (marking.get(pId) || 0) - 1));
+    outputs.forEach((pId) => marking.set(pId, (marking.get(pId) || 0) + 1));
+  };
+
+  for (const tId of trace) {
+    if (!canFire(tId)) return false;
+    fire(tId);
+  }
+
+  return (marking.get("P_out") || 0) > 0;
+}
 
 const applyLinearPlaceRule = (graph: Graph, targetId: string): Graph => {
   const newGraph = { ...graph };
@@ -339,20 +348,10 @@ const applyLinearPlaceRule = (graph: Graph, targetId: string): Graph => {
 
   newGraph.edges = [...newGraph.edges, ...inputEdges, ...outputEdges];
 
-  if (wouldCreateInvalidConnections(newGraph)) {
-    toast.error("Cannot create a valid linear dependent place configuration");
+  const soundnessCheck = isPetriNetSound(newGraph);
+  if (!soundnessCheck.isSound) {
+    toast.error(`Cannot apply this rule: ${soundnessCheck.errors[0]}`);
     return graph;
-  }
-
-  if (!isConnectedGraph(newGraph)) {
-    toast.error("Cannot apply this rule: it would create disconnected nodes");
-    return graph;
-  }
-  if (!hasFirablePath(newGraph)) {
-    toast.error(
-      "Invalid Petri net: No firable path to P_out after applying this rule."
-    );
-    return; // do not commit this rule
   }
 
   return newGraph;
@@ -412,22 +411,10 @@ const applyLinearTransitionDependencyRule = (
 
   newGraph.edges = [...newGraph.edges, ...inputEdges, ...outputEdges];
 
-  if (wouldCreateInvalidConnections(newGraph)) {
-    toast.error(
-      "Cannot create a valid linear dependent transition configuration"
-    );
+  const soundnessCheck = isPetriNetSound(newGraph);
+  if (!soundnessCheck.isSound) {
+    toast.error(`Cannot apply this rule: ${soundnessCheck.errors[0]}`);
     return graph;
-  }
-
-  if (!isConnectedGraph(newGraph)) {
-    toast.error("Cannot apply this rule: it would create disconnected nodes");
-    return graph;
-  }
-  if (!hasFirablePath(newGraph)) {
-    toast.error(
-      "Invalid Petri net: No firable path to P_out after applying this rule."
-    );
-    return; // do not commit this rule
   }
 
   return newGraph;
@@ -511,13 +498,7 @@ const applyRandomAbstractionRule = (graph: Graph): Graph => {
       transitions[Math.floor(Math.random() * transitions.length)];
     const newGraph = applyAbstractionRule(graph, randomTransition.id);
 
-    if (
-      newGraph !== graph &&
-      isConnectedGraph(newGraph) &&
-      !wouldCreateInvalidConnections(newGraph) &&
-      hasFirablePath(newGraph) &&
-      allNodesInPathFromStartToEnd(newGraph)
-    ) {
+    if (newGraph !== graph && isPetriNetSound(newGraph).isSound) {
       return newGraph;
     }
   }
@@ -555,13 +536,7 @@ const applyRandomLinearTransitionRule = (graph: Graph): Graph => {
       endNodeId
     );
 
-    if (
-      newGraph !== graph &&
-      isConnectedGraph(newGraph) &&
-      !wouldCreateInvalidConnections(newGraph) &&
-      hasFirablePath(newGraph) &&
-      allNodesInPathFromStartToEnd(newGraph)
-    ) {
+    if (newGraph !== graph && isPetriNetSound(newGraph).isSound) {
       return newGraph;
     }
   }
@@ -584,13 +559,7 @@ const applyRandomLinearPlaceRule = (graph: Graph): Graph => {
       transitions[Math.floor(Math.random() * transitions.length)];
     const newGraph = applyLinearPlaceRule(graph, randomTransition.id);
 
-    if (
-      newGraph !== graph &&
-      isConnectedGraph(newGraph) &&
-      hasFirablePath(newGraph) &&
-      !wouldCreateInvalidConnections(newGraph) &&
-      allNodesInPathFromStartToEnd(newGraph)
-    ) {
+    if (newGraph !== graph && isPetriNetSound(newGraph).isSound) {
       return newGraph;
     }
   }
@@ -614,13 +583,7 @@ const applyRandomLinearTransitionDependencyRule = (graph: Graph): Graph => {
       validPlaces[Math.floor(Math.random() * validPlaces.length)];
     const newGraph = applyLinearTransitionDependencyRule(graph, randomPlace.id);
 
-    if (
-      newGraph !== graph &&
-      isConnectedGraph(newGraph) &&
-      hasFirablePath(newGraph) &&
-      !wouldCreateInvalidConnections(newGraph) &&
-      allNodesInPathFromStartToEnd(newGraph)
-    ) {
+    if (newGraph !== graph && isPetriNetSound(newGraph).isSound) {
       return newGraph;
     }
   }
@@ -659,13 +622,7 @@ const applyRandomDualAbstractionRule = (graph: Graph): Graph => {
       endNodeId
     );
 
-    if (
-      newGraph !== graph &&
-      isConnectedGraph(newGraph) &&
-      hasFirablePath(newGraph) &&
-      !wouldCreateInvalidConnections(newGraph) &&
-      allNodesInPathFromStartToEnd(newGraph)
-    ) {
+    if (newGraph !== graph && isPetriNetSound(newGraph).isSound) {
       return newGraph;
     }
   }
@@ -766,66 +723,66 @@ const allNodesInPathFromStartToEnd = (graph: Graph): boolean => {
 };
 
 // Function to check if a graph would have invalid connections
-const wouldCreateInvalidConnections = (graph: Graph): boolean => {
-  const hasP0 = graph.nodes.some((n) => n.id === "P0");
-  const hasPOut = graph.nodes.some((n) => n.id === "P_out");
+// const wouldCreateInvalidConnections = (graph: Graph): boolean => {
+//   const hasP0 = graph.nodes.some((n) => n.id === "P0");
+//   const hasPOut = graph.nodes.some((n) => n.id === "P_out");
 
-  if (!hasP0 || !hasPOut) {
-    return true; // Both P0 and P_out must exist
-  }
+//   if (!hasP0 || !hasPOut) {
+//     return true; // Both P0 and P_out must exist
+//   }
 
-  const placeToPlaceConnections = graph.edges.some((edge) => {
-    const sourceType = graph.nodes.find((n) => n.id === edge.source)?.type;
-    const targetType = graph.nodes.find((n) => n.id === edge.target)?.type;
-    return sourceType === "place" && targetType === "place";
-  });
+//   const placeToPlaceConnections = graph.edges.some((edge) => {
+//     const sourceType = graph.nodes.find((n) => n.id === edge.source)?.type;
+//     const targetType = graph.nodes.find((n) => n.id === edge.target)?.type;
+//     return sourceType === "place" && targetType === "place";
+//   });
 
-  const transToTransConnections = graph.edges.some((edge) => {
-    const sourceType = graph.nodes.find((n) => n.id === edge.source)?.type;
-    const targetType = graph.nodes.find((n) => n.id === edge.target)?.type;
-    return sourceType === "transition" && targetType === "transition";
-  });
+//   const transToTransConnections = graph.edges.some((edge) => {
+//     const sourceType = graph.nodes.find((n) => n.id === edge.source)?.type;
+//     const targetType = graph.nodes.find((n) => n.id === edge.target)?.type;
+//     return sourceType === "transition" && targetType === "transition";
+//   });
 
-  const placesWithNoConnections = graph.nodes.filter((node) => {
-    if (node.type !== "place") return false;
+//   const placesWithNoConnections = graph.nodes.filter((node) => {
+//     if (node.type !== "place") return false;
 
-    const hasOutgoing = graph.edges.some((e) => e.source === node.id);
-    const hasIncoming = graph.edges.some((e) => e.target === node.id);
+//     const hasOutgoing = graph.edges.some((e) => e.source === node.id);
+//     const hasIncoming = graph.edges.some((e) => e.target === node.id);
 
-    if (node.id === "P0" && hasOutgoing) return false;
-    if (node.id === "P_out" && hasIncoming) return false;
+//     if (node.id === "P0" && hasOutgoing) return false;
+//     if (node.id === "P_out" && hasIncoming) return false;
 
-    return !hasOutgoing && !hasIncoming;
-  });
+//     return !hasOutgoing && !hasIncoming;
+//   });
 
-  const transitionsWithInvalidConnections = graph.nodes.filter((node) => {
-    if (node.type !== "transition") return false;
+//   const transitionsWithInvalidConnections = graph.nodes.filter((node) => {
+//     if (node.type !== "transition") return false;
 
-    const hasOutgoing = graph.edges.some((e) => e.source === node.id);
-    const hasIncoming = graph.edges.some((e) => e.target === node.id);
+//     const hasOutgoing = graph.edges.some((e) => e.source === node.id);
+//     const hasIncoming = graph.edges.some((e) => e.target === node.id);
 
-    return !hasOutgoing || !hasIncoming;
-  });
+//     return !hasOutgoing || !hasIncoming;
+//   });
 
-  let hasPathFromP0ToPOut = false;
+//   let hasPathFromP0ToPOut = false;
 
-  if (
-    hasP0 &&
-    hasPOut &&
-    !placeToPlaceConnections &&
-    !transToTransConnections
-  ) {
-    hasPathFromP0ToPOut = allNodesInPathFromStartToEnd(graph);
-  }
+//   if (
+//     hasP0 &&
+//     hasPOut &&
+//     !placeToPlaceConnections &&
+//     !transToTransConnections
+//   ) {
+//     hasPathFromP0ToPOut = allNodesInPathFromStartToEnd(graph);
+//   }
 
-  return (
-    placeToPlaceConnections ||
-    transToTransConnections ||
-    placesWithNoConnections.length > 0 ||
-    transitionsWithInvalidConnections.length > 0 ||
-    !hasPathFromP0ToPOut
-  );
-};
+//   return (
+//     placeToPlaceConnections ||
+//     transToTransConnections ||
+//     placesWithNoConnections.length > 0 ||
+//     transitionsWithInvalidConnections.length > 0 ||
+//     !hasPathFromP0ToPOut
+//   );
+// };
 
 // Map rules to their implementations
 const rulesMap: Record<
@@ -1841,10 +1798,473 @@ export const usePetriNet = () => {
   return context;
 };
 
-// We can't modify this file as it's read-only, but in a real-world scenario,
-// we would need to update the context to include:
-// 1. A new updateNodeDescription function
-// 2. Update the Node type to include a description field
+// Enhanced soundness validation based on WoFLAN principles
+// A Petri net is sound if it satisfies: safeness, proper completion, option to complete, and absence of dead transitions
 
-// Since we can't modify the context directly, we'll simulate this functionality
-// by adding a custom event listener in our components to handle this.
+interface Graph {
+  nodes: Node[];
+  edges: Edge[];
+}
+
+interface Node {
+  id: string;
+  type: "place" | "transition";
+  tokens?: number;
+}
+
+interface Edge {
+  source: string;
+  target: string;
+}
+
+// Main soundness validation function
+export const isPetriNetSound = (
+  graph: Graph
+): { isSound: boolean; errors: string[] } => {
+  const errors: string[] = [];
+
+  // 1. Basic structural validation
+  if (!isValidWorkflowNet(graph)) {
+    errors.push("Not a valid workflow net structure");
+  }
+
+  // 2. Check for structural soundness properties
+  const structuralCheck = checkStructuralSoundness(graph);
+  if (!structuralCheck.isValid) {
+    errors.push(...structuralCheck.errors);
+  }
+
+  // 3. Check behavioral soundness properties
+  const behavioralCheck = checkBehavioralSoundness(graph);
+  if (!behavioralCheck.isValid) {
+    errors.push(...behavioralCheck.errors);
+  }
+
+  return {
+    isSound: errors.length === 0,
+    errors,
+  };
+};
+
+// 1. Validate basic workflow net structure
+const isValidWorkflowNet = (graph: Graph): boolean => {
+  const places = graph.nodes.filter((n) => n.type === "place");
+  const transitions = graph.nodes.filter((n) => n.type === "transition");
+
+  // Must have exactly one source place (P0) and one sink place (P_out)
+  const sourcePlaces = places.filter((p) => {
+    const hasIncoming = graph.edges.some((e) => e.target === p.id);
+    return !hasIncoming && p.id === "P0";
+  });
+
+  const sinkPlaces = places.filter((p) => {
+    const hasOutgoing = graph.edges.some((e) => e.source === p.id);
+    return !hasOutgoing && p.id === "P_out";
+  });
+
+  if (sourcePlaces.length !== 1 || sinkPlaces.length !== 1) {
+    return false;
+  }
+
+  // Check alternating structure (no place-to-place or transition-to-transition connections)
+  for (const edge of graph.edges) {
+    const sourceType = graph.nodes.find((n) => n.id === edge.source)?.type;
+    const targetType = graph.nodes.find((n) => n.id === edge.target)?.type;
+
+    if (sourceType === targetType) {
+      return false;
+    }
+  }
+
+  // Every node (except source and sink) must have incoming and outgoing edges
+  for (const node of graph.nodes) {
+    if (node.id === "P0" || node.id === "P_out") continue;
+
+    const hasIncoming = graph.edges.some((e) => e.target === node.id);
+    const hasOutgoing = graph.edges.some((e) => e.source === node.id);
+
+    if (!hasIncoming || !hasOutgoing) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
+// 2. Check structural soundness properties
+const checkStructuralSoundness = (
+  graph: Graph
+): { isValid: boolean; errors: string[] } => {
+  const errors: string[] = [];
+
+  // Check strong connectivity (all nodes reachable from each other in underlying undirected graph)
+  if (!isStronglyConnected(graph)) {
+    errors.push("Graph is not strongly connected");
+  }
+
+  // Check for proper S-components and T-components
+  const componentCheck = checkSTComponents(graph);
+  if (!componentCheck.isValid) {
+    errors.push(...componentCheck.errors);
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+  };
+};
+
+// 3. Check behavioral soundness properties
+const checkBehavioralSoundness = (
+  graph: Graph
+): { isValid: boolean; errors: string[] } => {
+  const errors: string[] = [];
+
+  // Property 1: Proper completion - from any reachable marking, it's possible to reach the final marking
+  if (!checkProperCompletion(graph)) {
+    errors.push(
+      "Proper completion property violated - cannot always reach final state"
+    );
+  }
+
+  // Property 2: Option to complete - final marking is reachable from initial marking
+  if (!checkOptionToComplete(graph)) {
+    errors.push(
+      "Option to complete property violated - final state not reachable"
+    );
+  }
+
+  // Property 3: No dead transitions - every transition can be fired in some reachable marking
+  const deadTransitions = findDeadTransitions(graph);
+  if (deadTransitions.length > 0) {
+    errors.push(`Dead transitions found: ${deadTransitions.join(", ")}`);
+  }
+
+  // Property 4: Safeness - no place ever contains more than one token
+  if (!checkSafeness(graph)) {
+    errors.push(
+      "Safeness property violated - some place can hold multiple tokens"
+    );
+  }
+
+  // Property 5: Liveness - check for potential deadlocks
+  if (!checkLiveness(graph)) {
+    errors.push("Liveness property violated - potential deadlocks exist");
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+  };
+};
+
+// Helper function: Check strong connectivity
+const isStronglyConnected = (graph: Graph): boolean => {
+  if (graph.nodes.length === 0) return true;
+
+  // Build undirected adjacency representation
+  const adjacency = new Map<string, Set<string>>();
+  graph.nodes.forEach((node) => adjacency.set(node.id, new Set()));
+
+  graph.edges.forEach((edge) => {
+    adjacency.get(edge.source)?.add(edge.target);
+    adjacency.get(edge.target)?.add(edge.source);
+  });
+
+  // DFS from first node
+  const visited = new Set<string>();
+  const stack = [graph.nodes[0].id];
+
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    if (visited.has(current)) continue;
+
+    visited.add(current);
+    const neighbors = adjacency.get(current) || new Set();
+    neighbors.forEach((neighbor) => {
+      if (!visited.has(neighbor)) {
+        stack.push(neighbor);
+      }
+    });
+  }
+
+  return visited.size === graph.nodes.length;
+};
+
+// Check S-components and T-components
+const checkSTComponents = (
+  graph: Graph
+): { isValid: boolean; errors: string[] } => {
+  const errors: string[] = [];
+
+  // For workflow nets, we need to ensure proper structural properties
+  // This is a simplified check - full S/T-component analysis is complex
+
+  const places = graph.nodes.filter((n) => n.type === "place");
+  const transitions = graph.nodes.filter((n) => n.type === "transition");
+
+  // Check for places that might cause structural issues
+  for (const place of places) {
+    if (place.id === "P0" || place.id === "P_out") continue;
+
+    const incomingTrans = graph.edges
+      .filter((e) => e.target === place.id)
+      .map((e) => e.source);
+    const outgoingTrans = graph.edges
+      .filter((e) => e.source === place.id)
+      .map((e) => e.target);
+
+    // Check for potential conflicts or confusions
+    if (incomingTrans.length > 1 && outgoingTrans.length > 1) {
+      // This place has multiple inputs and outputs - check for proper synchronization
+      const hasProperSync = checkProperSynchronization(graph, place.id);
+      if (!hasProperSync) {
+        errors.push(`Place ${place.id} may cause synchronization issues`);
+      }
+    }
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+  };
+};
+
+// Check proper completion property
+const checkProperCompletion = (graph: Graph): boolean => {
+  // Use reachability analysis to check if from any reachable marking,
+  // we can reach a marking where only P_out has a token
+
+  const reachableMarkings = computeReachabilityGraph(graph);
+
+  for (const marking of reachableMarkings) {
+    if (!canReachFinalMarking(graph, marking)) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
+// Check option to complete property
+const checkOptionToComplete = (graph: Graph): boolean => {
+  const initialMarking = createInitialMarking(graph);
+  return canReachFinalMarking(graph, initialMarking);
+};
+
+// Find dead transitions
+const findDeadTransitions = (graph: Graph): string[] => {
+  const reachableMarkings = computeReachabilityGraph(graph);
+  const transitions = graph.nodes.filter((n) => n.type === "transition");
+  const deadTransitions: string[] = [];
+
+  for (const transition of transitions) {
+    let canFire = false;
+
+    for (const marking of reachableMarkings) {
+      if (isTransitionEnabled(graph, transition.id, marking)) {
+        canFire = true;
+        break;
+      }
+    }
+
+    if (!canFire) {
+      deadTransitions.push(transition.id);
+    }
+  }
+
+  return deadTransitions;
+};
+
+// Check safeness property
+const checkSafeness = (graph: Graph): boolean => {
+  const reachableMarkings = computeReachabilityGraph(graph);
+
+  for (const marking of reachableMarkings) {
+    for (const [placeId, tokens] of marking) {
+      if (tokens > 1) {
+        return false;
+      }
+    }
+  }
+
+  return true;
+};
+
+// Check liveness property
+const checkLiveness = (graph: Graph): boolean => {
+  const reachableMarkings = computeReachabilityGraph(graph);
+
+  // Check for markings with no enabled transitions (except final marking)
+  for (const marking of reachableMarkings) {
+    const isFinalMarking =
+      marking.get("P_out") === 1 &&
+      Array.from(marking.values()).reduce((sum, tokens) => sum + tokens, 0) ===
+        1;
+
+    if (!isFinalMarking) {
+      const enabledTransitions = getEnabledTransitions(graph, marking);
+      if (enabledTransitions.length === 0) {
+        return false; // Deadlock found
+      }
+    }
+  }
+
+  return true;
+};
+
+// Helper functions for marking operations
+const createInitialMarking = (graph: Graph): Map<string, number> => {
+  const marking = new Map<string, number>();
+  graph.nodes.forEach((node) => {
+    if (node.type === "place") {
+      marking.set(node.id, node.id === "P0" ? 1 : 0);
+    }
+  });
+  return marking;
+};
+
+const isTransitionEnabled = (
+  graph: Graph,
+  transitionId: string,
+  marking: Map<string, number>
+): boolean => {
+  const inputPlaces = graph.edges
+    .filter((e) => e.target === transitionId)
+    .map((e) => e.source);
+
+  return inputPlaces.every((placeId) => (marking.get(placeId) || 0) > 0);
+};
+
+const getEnabledTransitions = (
+  graph: Graph,
+  marking: Map<string, number>
+): string[] => {
+  const transitions = graph.nodes.filter((n) => n.type === "transition");
+  return transitions
+    .filter((t) => isTransitionEnabled(graph, t.id, marking))
+    .map((t) => t.id);
+};
+
+const fireTransition = (
+  graph: Graph,
+  transitionId: string,
+  marking: Map<string, number>
+): Map<string, number> => {
+  const newMarking = new Map(marking);
+
+  const inputPlaces = graph.edges
+    .filter((e) => e.target === transitionId)
+    .map((e) => e.source);
+  const outputPlaces = graph.edges
+    .filter((e) => e.source === transitionId)
+    .map((e) => e.target);
+
+  inputPlaces.forEach((placeId) => {
+    newMarking.set(placeId, (newMarking.get(placeId) || 0) - 1);
+  });
+
+  outputPlaces.forEach((placeId) => {
+    newMarking.set(placeId, (newMarking.get(placeId) || 0) + 1);
+  });
+
+  return newMarking;
+};
+
+// Compute reachability graph (simplified - may need optimization for large nets)
+const computeReachabilityGraph = (graph: Graph): Map<string, number>[] => {
+  const reachableMarkings: Map<string, number>[] = [];
+  const visitedMarkings = new Set<string>();
+  const queue: Map<string, number>[] = [createInitialMarking(graph)];
+
+  while (queue.length > 0 && reachableMarkings.length < 1000) {
+    // Limit to prevent infinite loops
+    const currentMarking = queue.shift()!;
+    const markingKey = markingToString(currentMarking);
+
+    if (visitedMarkings.has(markingKey)) continue;
+
+    visitedMarkings.add(markingKey);
+    reachableMarkings.push(currentMarking);
+
+    const enabledTransitions = getEnabledTransitions(graph, currentMarking);
+
+    for (const transitionId of enabledTransitions) {
+      const newMarking = fireTransition(graph, transitionId, currentMarking);
+      const newMarkingKey = markingToString(newMarking);
+
+      if (!visitedMarkings.has(newMarkingKey)) {
+        queue.push(newMarking);
+      }
+    }
+  }
+
+  return reachableMarkings;
+};
+
+const canReachFinalMarking = (
+  graph: Graph,
+  fromMarking: Map<string, number>
+): boolean => {
+  const visited = new Set<string>();
+  const queue = [fromMarking];
+
+  while (queue.length > 0) {
+    const currentMarking = queue.shift()!;
+    const markingKey = markingToString(currentMarking);
+
+    if (visited.has(markingKey)) continue;
+    visited.add(markingKey);
+
+    // Check if this is the final marking
+    if (
+      currentMarking.get("P_out") === 1 &&
+      Array.from(currentMarking.values()).reduce(
+        (sum, tokens) => sum + tokens,
+        0
+      ) === 1
+    ) {
+      return true;
+    }
+
+    const enabledTransitions = getEnabledTransitions(graph, currentMarking);
+
+    for (const transitionId of enabledTransitions) {
+      const newMarking = fireTransition(graph, transitionId, currentMarking);
+      const newMarkingKey = markingToString(newMarking);
+
+      if (!visited.has(newMarkingKey) && visited.size < 500) {
+        // Limit search depth
+        queue.push(newMarking);
+      }
+    }
+  }
+
+  return false;
+};
+
+const checkProperSynchronization = (graph: Graph, placeId: string): boolean => {
+  // Simplified check for proper synchronization patterns
+  // In a well-formed workflow net, places with multiple inputs/outputs should follow specific patterns
+  return true; // Placeholder - implement based on specific synchronization requirements
+};
+
+const markingToString = (marking: Map<string, number>): string => {
+  const sortedEntries = Array.from(marking.entries()).sort();
+  return JSON.stringify(sortedEntries);
+};
+
+// Updated main validation function that integrates with your existing code
+export const wouldCreateInvalidConnections = (graph: Graph): boolean => {
+  const soundnessCheck = isPetriNetSound(graph);
+  return !soundnessCheck.isSound;
+};
+
+// You can also use individual checks
+export const isWorkflowNetSound = (graph: Graph): boolean => {
+  return isPetriNetSound(graph).isSound;
+};
+
+export const getSoundnessErrors = (graph: Graph): string[] => {
+  return isPetriNetSound(graph).errors;
+};
